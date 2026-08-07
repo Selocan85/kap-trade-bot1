@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 from flask import Flask
 import threading
+import google.generativeai as genai
 
 # ===========================
 # FLASK WEB SUNUCUSU (Render için gerekli)
@@ -30,6 +31,10 @@ CHAT_ID = "8812183487"
 
 # Google Gemini API Anahtarınız
 GEMINI_API_KEY = "AQ.Ab8RN6L8_sxJ_EyOzrU_meWJp_60LMhTCm-S4SEPBV966IY1NA"
+
+# Resmi SDK yapılandırması
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 KAP_URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
 
@@ -63,7 +68,7 @@ def telegram_gonder(mesaj):
 
 
 # ===========================
-# AI TRADE ANALİZİ (GÜNLÜK AL-SAT ODAKLI)
+# AI TRADE ANALİZİ (Resmi SDK ile)
 # ===========================
 
 def ai_analiz(sembol, baslik, ozet):
@@ -84,41 +89,15 @@ Tahmini Destek / Direnç: (Haberin yaratacağı harekete göre olası anlık sev
 Trade Yorumu: (Haberin gün içi tahtaya etkisini, hacim ve yön beklentisini en fazla 2 cümleyle özetle)
 """
 
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-    
-    headers = {
-        "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY
-    }
-
-    body = {
-        "contents": [
-            {
-                "parts": [{"text": prompt}]
-            }
-        ]
-    }
-
     try:
-        r = requests.post(
-            url,
-            headers=headers,
-            json=body,
-            timeout=60
-        )
-
-        if r.status_code != 200:
-            return f"Gemini AI Hatası ({r.status_code}): {r.text}"
-
-        veri = r.json()
-        return veri["candidates"][0]["content"]["parts"][0]["text"]
-
+        response = model.generate_content(prompt)
+        return response.text
     except Exception as e:
-        return str(e)
+        return f"Gemini AI Hatası: {str(e)}"
 
 
 print("KAP GÜNLÜK TRADE BOTU BAŞLATILDI")
-telegram_gonder("⚡ KAP Günlük Trade Analiz Botu Aktif (Filtresiz Mod)")
+telegram_gonder("⚡ KAP Günlük Trade Analiz Botu Aktif (Render SDK Modu)")
 
 while True:
     bugun = datetime.now().strftime("%d.%m.%Y")
@@ -172,7 +151,6 @@ while True:
             )
 
             sirket = bilgi.get("companyTitle", "-")
-            saat = bilgi.get("publishDate", "-")
             disclosure_id = bilgi.get("disclosureId")
             link = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
 
@@ -205,7 +183,7 @@ while True:
 
         if ilk_acilis:
             print(f"{len(gorulen)} eski bildirim hafızaya alındı.")
-            print("Bot filtresiz modda sinyal dinliyor.\n")
+            print("Bot render üzerinde çalışıyor.\n")
             ilk_acilis = False
 
     except Exception as e:
