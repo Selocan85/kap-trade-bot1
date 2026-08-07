@@ -6,18 +6,18 @@ from flask import Flask
 import threading
 
 # ===========================
-# FLASK WEB SUNUCUSU (Render için gerekli)
+# FLASK WEB SUNUCUSU (Render için)
 # ===========================
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "KAP Günlük Trade Bot Aktif ve Çalışıyor!"
+    return "KAP Günlük Trade Bot Aktif!"
 
 def run_web():
     app.run(host='0.0.0.0', port=8080)
 
-# Web sunucusunu arka planda ayrı bir iş parçacığında başlatıyoruz
+# Web sunucusunu arka planda başlatıyoruz
 threading.Thread(target=run_web).start()
 
 
@@ -28,7 +28,7 @@ threading.Thread(target=run_web).start()
 BOT_TOKEN = "8952631263:AAG8x4JqVmmj-7AlzbilHma9wkumBpATVsg"
 CHAT_ID = "8812183487"
 
-# Google Gemini API Anahtarınız
+# Google Gemini API Anahtarınızı buraya yazın
 GEMINI_API_KEY = "AQ.Ab8RN6LS915KPxAfQWh21zeI8wFumFJiHthwL7F7jt3XureaiA"
 
 KAP_URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
@@ -121,7 +121,7 @@ Tahmini Destek / Direnç: (Haberin yaratacağı harekete göre olası anlık sev
 Trade Yorumu: (Haberin gün içi tahtaya etkisini, hacim ve yön beklentisini en fazla 2 cümleyle özetle)
 """
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={GEMINI_API_KEY}"
     
     headers = {
         "Content-Type": "application/json"
@@ -153,8 +153,8 @@ Trade Yorumu: (Haberin gün içi tahtaya etkisini, hacim ve yön beklentisini en
         return str(e)
 
 
-print("KAP GÜNLÜK TRADE BOTU BAŞLATILDI (Render Modu)")
-telegram_gonder("⚡ KAP Günlük Trade Analiz Botu Aktif (Render)")
+print("KAP GÜNLÜK TRADE BOTU BAŞLATILDI")
+telegram_gonder("⚡ KAP Günlük Trade Analiz Botu Aktif")
 
 while True:
     bugun = datetime.now().strftime("%d.%m.%Y")
@@ -215,6 +215,7 @@ while True:
             )
 
             sirket = bilgi.get("companyTitle", "-")
+            saat = bilgi.get("publishDate", "-")
             disclosure_id = bilgi.get("disclosureId")
             link = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
 
