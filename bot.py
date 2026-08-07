@@ -1,9 +1,9 @@
-import requests
 import time
 import json
 from datetime import datetime
 from flask import Flask
 import threading
+from google import genai
 
 # ===========================
 # FLASK WEB SUNUCUSU (Render için)
@@ -17,7 +17,6 @@ def home():
 def run_web():
     app.run(host='0.0.0.0', port=8080)
 
-# Web sunucusunu arka planda başlatıyoruz
 threading.Thread(target=run_web).start()
 
 
@@ -28,8 +27,11 @@ threading.Thread(target=run_web).start()
 BOT_TOKEN = "8952631263:AAG8x4JqVmmj-7AlzbilHma9wkumBpATVsg"
 CHAT_ID = "8812183487"
 
-# Google Gemini API Anahtarınızı buraya yazın
+# Google Gemini API Anahtarınız
 GEMINI_API_KEY = "AQ.Ab8RN6LS915KPxAfQWh21zeI8wFumFJiHthwL7F7jt3XureaiA"
+
+# Resmi GenAI İstemcisi (401 hatasını çözer)
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 KAP_URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
 
@@ -39,7 +41,6 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-# ÖNEMLİ HABER FİLTRELERİ
 KEYWORDS = [
     "Finansal Rapor",
     "Bilanço",
@@ -63,7 +64,6 @@ KEYWORDS = [
     "Esas Sözleşme"
 ]
 
-# GEREKSİZ / GÜRÜLTÜ YARATAN HABERLER
 IGNORE = [
     "Devre Kesici",
     "Varant",
@@ -84,6 +84,7 @@ ilk_acilis = True
 # ===========================
 
 def telegram_gonder(mesaj):
+    import requests
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     try:
         requests.post(
@@ -121,42 +122,21 @@ Tahmini Destek / Direnç: (Haberin yaratacağı harekete göre olası anlık sev
 Trade Yorumu: (Haberin gün içi tahtaya etkisini, hacim ve yön beklentisini en fazla 2 cümleyle özetle)
 """
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={GEMINI_API_KEY}"
-    
-    headers = {
-        "Content-Type": "application/json"
-    }
-
-    body = {
-        "contents": [
-            {
-                "parts": [{"text": prompt}]
-            }
-        ]
-    }
-
     try:
-        r = requests.post(
-            url,
-            headers=headers,
-            json=body,
-            timeout=60
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
         )
-
-        if r.status_code != 200:
-            return f"Gemini AI Hatası ({r.status_code}): {r.text}"
-
-        veri = r.json()
-        return veri["candidates"][0]["content"]["parts"][0]["text"]
-
+        return response.text
     except Exception as e:
-        return str(e)
+        return f"Gemini AI Hatası: {str(e)}"
 
 
 print("KAP GÜNLÜK TRADE BOTU BAŞLATILDI")
 telegram_gonder("⚡ KAP Günlük Trade Analiz Botu Aktif")
 
 while True:
+    import requests
     bugun = datetime.now().strftime("%d.%m.%Y")
 
     payload = {
@@ -198,8 +178,8 @@ while True:
 
             gorulen.add(idx)
 
-            baslik = bilgi.get("title", "")
-            ozet = bilgi.get("summary", "")
+            baslik = str(bilgi.get("title") or "")
+            ozet = str(bilgi.get("summary") or "")
             metin = (baslik + " " + ozet).lower()
 
             if any(k.lower() in metin for k in IGNORE):
@@ -214,8 +194,8 @@ while True:
                 or "-"
             )
 
-            sirket = bilgi.get("companyTitle", "-")
-            saat = bilgi.get("publishDate", "-")
+            sirket = str(bilgi.get("companyTitle") or "-")
+            saat = str(bilgi.get("publishDate") or "-")
             disclosure_id = bilgi.get("disclosureId")
             link = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
 
