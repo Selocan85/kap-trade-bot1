@@ -29,7 +29,7 @@ BOT_TOKEN = "8952631263:AAG8x4JqVmmj-7AlzbilHma9wkumBpATVsg"
 CHAT_ID = "8812183487"
 
 # Google Gemini API Anahtarınız
-GEMINI_API_KEY = "AQ.Ab8RN6Jnvj1PxZ0b20tTEiDHPZL0aNSoTdVJDZq6iLOfCbctjQ"
+GEMINI_API_KEY = "AQ.Ab8RN6L8_sxJ_EyOzrU_meWJp_60LMhTCm-S4SEPBV966IY1NA"
 
 KAP_URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
 
@@ -38,43 +38,6 @@ HEADERS = {
     "Referer": "https://www.kap.org.tr/tr",
     "Content-Type": "application/json"
 }
-
-# ÖNEMLİ HABER FİLTRELERİ
-KEYWORDS = [
-    "Finansal Rapor",
-    "Bilanço",
-    "Yeni İş İlişkisi",
-    "Sözleşme",
-    "Sermaye Artırımı",
-    "Kar Payı",
-    "Temettü",
-    "Payların Geri Alınmasına",
-    "Pay Geri Alım",
-    "Birleşme",
-    "Bölünme",
-    "İhale",
-    "Yatırım",
-    "Teşvik",
-    "Kapasite Artırımı",
-    "Yeni Fabrika",
-    "Ortaklık",
-    "Satın Alma",
-    "Stratejik İş Birliği",
-    "Esas Sözleşme"
-]
-
-# GEREKSİZ / GÜRÜLTÜ YARATAN HABERLER
-IGNORE = [
-    "Devre Kesici",
-    "Varant",
-    "Sertifika",
-    "Borçlanma Aracı",
-    "Kupon",
-    "Faiz",
-    "VTMK",
-    "VDMK",
-    "Özel Durum Açıklaması (Genel)"
-]
 
 gorulen = set()
 ilk_acilis = True
@@ -121,10 +84,11 @@ Tahmini Destek / Direnç: (Haberin yaratacağı harekete göre olası anlık sev
 Trade Yorumu: (Haberin gün içi tahtaya etkisini, hacim ve yön beklentisini en fazla 2 cümleyle özetle)
 """
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={GEMINI_API_KEY}"
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
     
     headers = {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "x-goog-api-key": GEMINI_API_KEY
     }
 
     body = {
@@ -154,7 +118,7 @@ Trade Yorumu: (Haberin gün içi tahtaya etkisini, hacim ve yön beklentisini en
 
 
 print("KAP GÜNLÜK TRADE BOTU BAŞLATILDI")
-telegram_gonder("⚡ KAP Günlük Trade Analiz Botu Aktif")
+telegram_gonder("⚡ KAP Günlük Trade Analiz Botu Aktif (Filtresiz Mod)")
 
 while True:
     bugun = datetime.now().strftime("%d.%m.%Y")
@@ -200,13 +164,6 @@ while True:
 
             baslik = bilgi.get("title", "")
             ozet = bilgi.get("summary", "")
-            metin = (baslik + " " + ozet).lower()
-
-            if any(k.lower() in metin for k in IGNORE):
-                continue
-
-            if not any(k.lower() in metin for k in KEYWORDS):
-                continue
 
             sembol = (
                 bilgi.get("relatedStocks")
@@ -220,7 +177,7 @@ while True:
             link = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
 
             print("=" * 90)
-            print("🟢 TRADE SİNYALİ YAKALANDI")
+            print("🟢 FİLTRESİZ BİLDİRİM YAKALANDI")
             print("=" * 90)
             print("Şirket :", sirket)
             print("Sembol :", sembol)
@@ -231,7 +188,7 @@ while True:
             print(analiz)
             
             mesaj = f"""
-⚡ GÜNLÜK TRADE SİNYALİ
+⚡ FİLTRESİZ BİLDİRİM
 
 🏢 {sirket}
 📈 {sembol}
@@ -248,7 +205,7 @@ while True:
 
         if ilk_acilis:
             print(f"{len(gorulen)} eski bildirim hafızaya alındı.")
-            print("Bot günlük trade modunda sinyal dinliyor.\n")
+            print("Bot filtresiz modda sinyal dinliyor.\n")
             ilk_acilis = False
 
     except Exception as e:
