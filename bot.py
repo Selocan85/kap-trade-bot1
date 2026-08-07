@@ -36,6 +36,40 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
+# Sadece yakalanmasını istediğimiz önemli anahtar kelimeler
+KEYWORDS = [
+    "Finansal Rapor",
+    "Yeni İş İlişkisi",
+    "Sermaye Artırımı",
+    "Sermaye Azaltımı",
+    "Kar Payı",
+    "Temettü",
+    "Payların Geri Alınmasına",
+    "Pay Geri Alım",
+    "Birleşme",
+    "Bölünme",
+    "İhale",
+    "Yatırım",
+    "Teşvik",
+    "Kapasite Artırımı",
+    "Yeni Fabrika",
+    "Ortaklık",
+    "Satın Alma",
+    "Esas Sözleşme"
+]
+
+# Kesinlikle bildirim gelmesini istemediğimiz (eleceğimiz) kelimeler
+IGNORE = [
+    "Devre Kesici",
+    "Varant",
+    "Sertifika",
+    "Borçlanma Aracı",
+    "Kupon",
+    "Faiz",
+    "VTMK",
+    "VDMK"
+]
+
 gorulen = set()
 ilk_acilis = True
 
@@ -59,8 +93,8 @@ def telegram_gonder(mesaj):
         print("Telegram:", e)
 
 
-print("KAP TRADE BOTU BAŞLATILDI (Yapay Zekasız Mod)")
-telegram_gonder("⚡ KAP Trade Bot Aktif (Yapay Zekasız Mod)")
+print("KAP TRADE BOTU BAŞLATILDI (Filtreli Mod)")
+telegram_gonder("⚡ KAP Trade Bot Aktif (Filtreli Mod)")
 
 while True:
     bugun = datetime.now().strftime("%d.%m.%Y")
@@ -107,6 +141,16 @@ while True:
             baslik = bilgi.get("title", "")
             ozet = bilgi.get("summary", "")
 
+            metin = (baslik + " " + ozet).lower()
+
+            # IGNORE listesindekileri atla
+            if any(k.lower() in metin for k in IGNORE):
+                continue
+
+            # KEYWORDS listesinden en az biri geçmiyorsa atla
+            if not any(k.lower() in metin for k in KEYWORDS):
+                continue
+
             sembol = (
                 bilgi.get("relatedStocks")
                 or bilgi.get("stockCode")
@@ -118,14 +162,14 @@ while True:
             link = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
 
             print("=" * 90)
-            print("🟢 BİLDİRİM YAKALANDI")
+            print("🟢 FİLTREYE UYGUN BİLDİRİM YAKALANDI")
             print("=" * 90)
             print("Şirket :", sirket)
             print("Sembol :", sembol)
             print("Başlık :", baslik)
             
             mesaj = f"""
-⚡️ YENİ KAPA BİLDİRİMİ
+⚡️ YENİ KAPA BİLDİRİMİ (Filtrelendi)
 
 🏢 {sirket}
 📈 {sembol}
@@ -142,7 +186,7 @@ while True:
 
         if ilk_acilis:
             print(f"{len(gorulen)} eski bildirim hafızaya alındı.")
-            print("Bot yeni bildirimleri dinliyor.\n")
+            print("Bot yeni filtrelenmiş bildirimleri dinliyor.\n")
             ilk_acilis = False
 
     except Exception as e:
