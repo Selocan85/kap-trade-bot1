@@ -12,7 +12,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "KAP Trade Bot Aktif ve Çalışıyor!"
+    return "KAP Günlük Trade Bot Aktif ve Çalışıyor!"
 
 def run_web():
     app.run(host='0.0.0.0', port=8080)
@@ -28,6 +28,9 @@ threading.Thread(target=run_web).start()
 BOT_TOKEN = "8952631263:AAG8x4JqVmmj-7AlzbilHma9wkumBpATVsg"
 CHAT_ID = "8812183487"
 
+# Google Gemini API Anahtarınız
+GEMINI_API_KEY = "AQ.Ab8RN6LS915KPxAfQWh21zeI8wFumFJiHthwL7F7jt3XureaiA"
+
 KAP_URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
 
 HEADERS = {
@@ -36,12 +39,13 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-# Sadece yakalanmasını istediğimiz önemli anahtar kelimeler
+# ÖNEMLİ HABER FİLTRELERİ
 KEYWORDS = [
     "Finansal Rapor",
+    "Bilanço",
     "Yeni İş İlişkisi",
+    "Sözleşme",
     "Sermaye Artırımı",
-    "Sermaye Azaltımı",
     "Kar Payı",
     "Temettü",
     "Payların Geri Alınmasına",
@@ -55,10 +59,11 @@ KEYWORDS = [
     "Yeni Fabrika",
     "Ortaklık",
     "Satın Alma",
+    "Stratejik İş Birliği",
     "Esas Sözleşme"
 ]
 
-# Kesinlikle bildirim gelmesini istemediğimiz (eleceğimiz) kelimeler
+# GEREKSİZ / GÜRÜLTÜ YARATAN HABERLER
 IGNORE = [
     "Devre Kesici",
     "Varant",
@@ -67,7 +72,8 @@ IGNORE = [
     "Kupon",
     "Faiz",
     "VTMK",
-    "VDMK"
+    "VDMK",
+    "Özel Durum Açıklaması (Genel)"
 ]
 
 gorulen = set()
@@ -93,8 +99,62 @@ def telegram_gonder(mesaj):
         print("Telegram:", e)
 
 
-print("KAP TRADE BOTU BAŞLATILDI (Filtreli Mod)")
-telegram_gonder("⚡ KAP Trade Bot Aktif (Filtreli Mod)")
+# ===========================
+# AI TRADE ANALİZİ (GÜNLÜK AL-SAT ODAKLI)
+# ===========================
+
+def ai_analiz(sembol, baslik, ozet):
+    prompt = f"""
+Sen profesyonel bir gün içi (day trading) borsa ve teknik analiz uzmanısın. Gelen KAP haberini anlık fiyat hareketi, hacim patlaması potansiyeli ve günlük trade edilebilirlik açısından süz.
+
+Şirket: {sembol}
+Başlık: {baslik}
+Özet: {ozet}
+
+Aşağıdaki formata tam olarak uyarak net, kısa ve vurucu yanıt ver:
+
+Etki: (Pozitif / Negatif / Nötr)
+Temel/Teknik Skor: (0-100 arası sayı)
+Günlük Trade Uygunluğu: (Uygun / Riskli / Tavsiye Edilmez)
+Beklenen Günlük Marj: (Örn: %3 - %5 veya Baskılı)
+Tahmini Destek / Direnç: (Haberin yaratacağı harekete göre olası anlık seviye ipuçları veya bant aralığı)
+Trade Yorumu: (Haberin gün içi tahtaya etkisini, hacim ve yön beklentisini en fazla 2 cümleyle özetle)
+"""
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    
+    headers = {
+        "Content-Type": "application/json"
+    }
+
+    body = {
+        "contents": [
+            {
+                "parts": [{"text": prompt}]
+            }
+        ]
+    }
+
+    try:
+        r = requests.post(
+            url,
+            headers=headers,
+            json=body,
+            timeout=60
+        )
+
+        if r.status_code != 200:
+            return f"Gemini AI Hatası ({r.status_code}): {r.text}"
+
+        veri = r.json()
+        return veri["candidates"][0]["content"]["parts"][0]["text"]
+
+    except Exception as e:
+        return str(e)
+
+
+print("KAP GÜNLÜK TRADE BOTU BAŞLATILDI (Render Modu)")
+telegram_gonder("⚡ KAP Günlük Trade Analiz Botu Aktif (Render)")
 
 while True:
     bugun = datetime.now().strftime("%d.%m.%Y")
@@ -140,14 +200,11 @@ while True:
 
             baslik = bilgi.get("title", "")
             ozet = bilgi.get("summary", "")
-
             metin = (baslik + " " + ozet).lower()
 
-            # IGNORE listesindekileri atla
             if any(k.lower() in metin for k in IGNORE):
                 continue
 
-            # KEYWORDS listesinden en az biri geçmiyorsa atla
             if not any(k.lower() in metin for k in KEYWORDS):
                 continue
 
@@ -162,21 +219,25 @@ while True:
             link = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
 
             print("=" * 90)
-            print("🟢 FİLTREYE UYGUN BİLDİRİM YAKALANDI")
+            print("🟢 TRADE SİNYALİ YAKALANDI")
             print("=" * 90)
             print("Şirket :", sirket)
             print("Sembol :", sembol)
             print("Başlık :", baslik)
+
+            analiz = ai_analiz(sembol, baslik, ozet)
+
+            print(analiz)
             
             mesaj = f"""
-⚡️ YENİ KAPA BİLDİRİMİ (Filtrelendi)
+⚡ GÜNLÜK TRADE SİNYALİ
 
 🏢 {sirket}
 📈 {sembol}
 
 📄 {baslik}
 
-Özet: {ozet[:300]}...
+{analiz}
 
 🔗 {link}
 """
@@ -186,7 +247,7 @@ while True:
 
         if ilk_acilis:
             print(f"{len(gorulen)} eski bildirim hafızaya alındı.")
-            print("Bot yeni filtrelenmiş bildirimleri dinliyor.\n")
+            print("Bot günlük trade modunda sinyal dinliyor.\n")
             ilk_acilis = False
 
     except Exception as e:
