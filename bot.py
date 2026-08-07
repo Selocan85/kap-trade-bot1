@@ -2,6 +2,24 @@ import requests
 import time
 import json
 from datetime import datetime
+from flask import Flask
+import threading
+
+# ===========================
+# FLASK WEB SUNUCUSU (Render için gerekli)
+# ===========================
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "KAP Trade Bot Aktif ve Çalışıyor!"
+
+def run_web():
+    app.run(host='0.0.0.0', port=8080)
+
+# Web sunucusunu arka planda ayrı bir iş parçacığında başlatıyoruz
+threading.Thread(target=run_web).start()
+
 
 # ===========================
 # AYARLAR
@@ -10,7 +28,7 @@ from datetime import datetime
 BOT_TOKEN = "8952631263:AAG8x4JqVmmj-7AlzbilHma9wkumBpATVsg"
 CHAT_ID = "8812183487"
 
-# Google Gemini API Anahtarınızı buraya yazın
+# Google Gemini API Anahtarınız
 GEMINI_API_KEY = "AQ.Ab8RN6Jnvj1PxZ0b20tTEiDHPZL0aNSoTdVJDZq6iLOfCbctjQ"
 
 KAP_URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
