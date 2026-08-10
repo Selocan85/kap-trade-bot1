@@ -13,7 +13,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "KAP Gelişmiş Trade Bot Aktif!"
+    return "KAP Filtreli ve Net Özetli Trade Bot Aktif!"
 
 def run_web():
     port = int(os.environ.get("PORT", 8080))
@@ -40,7 +40,44 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-# FİLTRELER KALDIRILDI (Her gelen bildirim işlenecek)
+# ===========================
+# FİLTRELER
+# ===========================
+
+KEYWORDS = [
+    "Finansal Rapor",
+    "Bilanço",
+    "Yeni İş İlişkisi",
+    "Sözleşme",
+    "Sermaye Artırımı",
+    "Kar Payı",
+    "Temettü",
+    "Payların Geri Alınmasına",
+    "Pay Geri Alım",
+    "Birleşme",
+    "Bölünme",
+    "İhale",
+    "Yatırım",
+    "Teşvik",
+    "Kapasite Artırımı",
+    "Yeni Fabrika",
+    "Ortaklık",
+    "Satın Alma",
+    "Stratejik İş Birliği",
+    "Esas Sözleşme"
+]
+
+IGNORE = [
+    "Devre Kesici",
+    "Varant",
+    "Sertifika",
+    "Borçlanma Aracı",
+    "Kupon",
+    "Faiz",
+    "VTMK",
+    "VDMK",
+    "Özel Durum Açıklaması (Genel)"
+]
 
 gorulen = set()
 ilk_acilis = True
@@ -66,26 +103,29 @@ def telegram_gonder(mesaj):
 
 
 # ===========================
-# AI TRADE ANALİZİ (GROQ İLE - GELİŞTİRİLMİŞ PROMPT)
+# AI TRADE ANALİZİ (NET ÖZETLİ)
 # ===========================
 
 def ai_analiz(sembol, baslik, ozet):
     prompt = f"""
-Sen profesyonel bir gün içi (day trading) borsa, hacim ve teknik analiz uzmanısın. Gelen KAP haberini anlık fiyat hareketi, hacim patlaması potansiyeli ve günlük trade edilebilirlik açısından süz.
+Sen profesyonel bir borsa, KAP ve finansal haber analiz uzmanısın. Gelen KAP bildirimini en ince ayrıntısına kadar oku, ne anlama geldiğini net ve anlaşılır bir Türkçe ile çözümle.
 
-Şirket: {sembol}
+Şirket Sembolü: {sembol}
 Başlık: {baslik}
 Özet: {ozet}
 
-Aşağıdaki formata tam olarak uyarak net, kısa ve vurucu yanıt ver:
+NOT: Hissenin anlık borsa fiyatını bilmediğin için asla net TL fiyatı (örn: 50 TL veya 100 TL) verme. Destek/direnç için "Mevcut direnç bölgesi", "Zirve bandı" veya "Destek seviyesi" gibi teknik ifadeler kullan.
 
+Aşağıdaki formata tam olarak uyarak yanıt ver:
+
+Haberin Özü (Ne Anlama Geliyor?): (Haberin gerçekte ne olduğunu, şirket için ne ifade ettiğini teknik jargona boğmadan net bir şekilde 1-2 cümleyle açıkla)
 Etki: (Pozitif / Negatif / Nötr)
 Haber Sınıfı: (Stratejik / Spekülatif / Rutin)
 Temel/Teknik Skor: (0-100 arası sayı)
 Günlük Trade Uygunluğu: (Uygun / Riskli / Tavsiye Edilmez)
 Beklenen Günlük Marj: (Örn: %3 - %5 veya Tavan Potansiyeli / Baskılı)
-Tahmini Destek / Direnç: (Haberin yaratacağı harekete göre olası anlık seviye ipuçları veya bant aralığı)
-Trade ve Risk Yorumu: (Haberin tahtadaki hacim etkisini, yön beklentisini ve dikkat edilmesi gereken riski en fazla 2 cümleyle özetle)
+Destek / Direnç Bölgesi: (Göreceli teknik bant veya yüzdesel aralık)
+Trade ve Risk Yorumu: (Haberin tahtadaki hacim etkisini ve dikkat edilmesi gereken riski en fazla 2 cümleyle özetle)
 """
 
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -120,8 +160,8 @@ Trade ve Risk Yorumu: (Haberin tahtadaki hacim etkisini, yön beklentisini ve di
         return str(e)
 
 
-print("KAP GELİŞMİŞ TRADE BOTU BAŞLATILDI")
-telegram_gonder("⚡ KAP Gelişmiş Trade Analiz Botu Aktif")
+print("KAP NET ÖZETLİ TRADE BOTU BAŞLATILDI")
+telegram_gonder("⚡ KAP Net Özetli Trade Analiz Botu Aktif")
 
 while True:
     bugun = datetime.now().strftime("%d.%m.%Y")
@@ -167,6 +207,13 @@ while True:
 
             baslik = bilgi.get("title", "")
             ozet = bilgi.get("summary", "")
+            metin = (baslik + " " + ozet).lower()
+
+            if any(k.lower() in metin for k in IGNORE):
+                continue
+
+            if not any(k.lower() in metin for k in KEYWORDS):
+                continue
 
             sembol = (
                 bilgi.get("relatedStocks")
@@ -179,7 +226,7 @@ while True:
             link = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
 
             print("=" * 90)
-            print("🟢 YENİ BİLDİRİM YAKALANDI (Gelişmiş Analiz)")
+            print("🟢 FİLTREDEN GEÇEN NET ÖZETLİ SİNYAL")
             print("=" * 90)
             print("Şirket :", sirket)
             print("Sembol :", sembol)
@@ -207,7 +254,7 @@ while True:
 
         if ilk_acilis:
             print(f"{len(gorulen)} eski bildirim hafızaya alındı.")
-            print("Bot gelişmiş analiz modunda haberleri dinliyor.\n")
+            print("Bot net özet modunda sinyal dinliyor.\n")
             ilk_acilis = False
 
     except Exception as e:
