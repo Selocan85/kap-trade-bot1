@@ -4,7 +4,9 @@ from datetime import datetime
 from flask import Flask
 import threading
 import os
+import io
 from bs4 import BeautifulSoup
+from pypdf import PdfReader
 
 # ===========================
 # FLASK WEB SUNUCUSU (Render için)
@@ -13,7 +15,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "KAP Detaylı Metin Okumalı Trade Bot Aktif!"
+    return "KAP PDF Okumalı ve Detaylı Trade Bot Aktif!"
 
 def run_web():
     port = int(os.environ.get("PORT", 8080))
@@ -103,49 +105,76 @@ def telegram_gonder(mesaj):
 
 
 # ===========================
-# KAP SAYFASINDAN DETAYLI METİN OKUMA
+# KAP SAYFASINDAN VE PDF'TEN DETAYLI OKUMA
 # ===========================
 
-def get_detayli_metin(disclosure_id):
-    """Bildirimin KAP web sayfasındaki detay metnini çeker."""
+def get_pdf_metni(disclosure_id):
+    """KAP sayfasındaki PDF raporlarını bulur, indirir ve içindeki metni okur."""
     url = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
     try:
         r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
         if r.status_code == 200:
             soup = BeautifulSoup(r.content, 'html.parser')
-            # Sayfadaki bildirim içerik alanını yakala
+            
+            # Sayfadaki PDF eklerini ara
+            pdf_links = []
+            for a in soup.find_all('a', href=True):
+                if '.pdf' in a['href'].lower():
+                    link = a['href']
+                    if not link.startswith('http'):
+                        link = "https://www.kap.org.tr" + link
+                    pdf_links.append(link)
+            
+            # Eğer PDF varsa ilkini indir ve oku
+            if pdf_links:
+                pdf_url = pdf_links[0]
+                pdf_res = requests.get(pdf_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
+                if pdf_res.status_code == 200:
+                    f = io.BytesIO(pdf_res.content)
+                    reader = PdfReader(f)
+                    pdf_metin = ""
+                    # İlk 3 sayfayı okumak finansal veriler için yeterlidir
+                    sayfa_sayisi = min(len(reader.pages), 3)
+                    for i in range(sayfa_sayisi):
+                        pdf_metin += reader.pages[i].extract_text() or ""
+                    if len(pdf_metin.strip()) > 50:
+                        return pdf_metin[:4000]
+
+            # Eğer PDF bulunamazsa normal sayfa içeriğini çek
             content = soup.find('div', {'class': 'disclosure-page-content'}) or soup.body
-            return content.get_text(separator=' ', strip=True)[:3500] # AI limitleri için ilk 3500 karakter
+            return content.get_text(separator=' ', strip=True)[:3500]
+
     except Exception as e:
-        print("Detay Metin Çekme Hatası:", e)
+        print("Metin/PDF Okuma Hatası:", e)
     return ""
 
 
 # ===========================
-# AI TRADE ANALİZİ (DETAYLI METİN DESTEKLİ)
+# AI TRADE ANALİZİ (MATEMATİKSEL VERİ DESTEKLİ)
 # ===========================
 
 def ai_analiz(sembol, baslik, ozet, detayli_metin):
     prompt = f"""
-Sen profesyonel bir borsa, KAP ve finansal haber analiz uzmanısın. Sana KAP bildiriminin başlığını, özetini ve sistemin resmi KAP sayfasından çektiği detaylı metni (rapor içeriğini) veriyorum. Bunları dikkatle incele ve ne anlama geldiğini net bir Türkçe ile çözümle.
+Sen profesyonel bir borsa, KAP ve finansal veri analistisin. Sana KAP bildiriminin başlığını, özetini ve sistemin resmi sayfadan/PDF raporundan çektiği detaylı metni veriyorum. Raporun içindeki sayısal ve matematiksel verileri (kâr/zarar, ciro, ihale bedeli, büyüme oranları vb.) dikkatle incele.
 
 Şirket Sembolü: {sembol}
 Başlık: {baslik}
 Özet: {ozet}
-Resmi Sayfa Detay Metni: {detayli_metin}
+Rapor/Sayfa Detay Metni: {detayli_metin}
 
 NOT: Hissenin anlık borsa fiyatını bilmediğin için asla net TL fiyatı verme. Destek/direnç için "Mevcut direnç bölgesi", "Zirve bandı" veya "Destek seviyesi" gibi teknik ifadeler kullan.
 
 Aşağıdaki formata tam olarak uyarak yanıt ver:
 
-Haberin Özü (Ne Anlama Geliyor?): (Detaylı metne dayanarak gerçekte ne olduğunu, şirket için ne ifade ettiğini net bir şekilde 1-2 cümleyle açıkla)
+Önemli Matematiksel Veriler: (Raporda geçen ciro, net kâr, ihale tutarı veya değişim yüzdelerini kısa maddeler halinde yaz, veri yoksa "Yok" de)
+Haberin Özü (Ne Anlama Geliyor?): (Gerçekte ne olduğunu net bir şekilde 1-2 cümleyle açıkla)
 Etki: (Pozitif / Negatif / Nötr)
 Haber Sınıfı: (Stratejik / Spekülatif / Rutin)
 Temel/Teknik Skor: (0-100 arası sayı)
 Günlük Trade Uygunluğu: (Uygun / Riskli / Tavsiye Edilmez)
 Beklenen Günlük Marj: (Örn: %3 - %5 veya Tavan Potansiyeli / Baskılı)
 Destek / Direnç Bölgesi: (Göreceli teknik bant veya yüzdesel aralık)
-Trade ve Risk Yorumu: (Haberin tahtadaki hacim etkisini ve dikkat edilmesi gereken riski en fazla 2 cümleyle özetle)
+Trade ve Risk Yorumu: (Verilere dayalı tahta etkisini en fazla 2 cümleyle özetle)
 """
 
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -180,8 +209,8 @@ Trade ve Risk Yorumu: (Haberin tahtadaki hacim etkisini ve dikkat edilmesi gerek
         return str(e)
 
 
-print("KAP DETAYLI OKUMALI TRADE BOTU BAŞLATILDI")
-telegram_gonder("⚡ KAP Detaylı Okumalı Trade Analiz Botu Aktif")
+print("KAP PDF OKUMALI TRADE BOTU BAŞLATILDI")
+telegram_gonder("⚡ KAP PDF Okumalı Trade Analiz Botu Aktif")
 
 while True:
     bugun = datetime.now().strftime("%d.%m.%Y")
@@ -246,16 +275,16 @@ while True:
             link = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
 
             print("=" * 90)
-            print("🟢 FİLTREDEN GEÇEN BİLDİRİM - DETAYLAR OKUNUYOR...")
+            print("🟢 FİLTREDEN GEÇEN BİLDİRİM - PDF VE DETAYLAR OKUNUYOR...")
             print("=" * 90)
             print("Şirket :", sirket)
             print("Sembol :", sembol)
             print("Başlık :", baslik)
 
-            # KAP web sayfasından asıl detay metnini çek
-            detayli_metin = get_detayli_metin(disclosure_id)
+            # KAP sayfasındaki PDF raporlarını veya detay metnini çek
+            detayli_metin = get_pdf_metni(disclosure_id)
 
-            # Yapay zekaya hem özeti hem de resmi detay metnini gönder
+            # Yapay zekaya matematiksel verileri de içerecek şekilde gönder
             analiz = ai_analiz(sembol, baslik, ozet, detayli_metin)
 
             print(analiz)
@@ -278,7 +307,7 @@ while True:
 
         if ilk_acilis:
             print(f"{len(gorulen)} eski bildirim hafızaya alındı.")
-            print("Bot detaylı okuma modunda sinyal dinliyor.\n")
+            print("Bot PDF okuma modunda sinyal dinliyor.\n")
             ilk_acilis = False
 
     except Exception as e:
