@@ -1,10 +1,10 @@
 import requests
 import time
-import json
 from datetime import datetime
 from flask import Flask
 import threading
 import os
+from bs4 import BeautifulSoup
 
 # ===========================
 # FLASK WEB SUNUCUSU (Render için)
@@ -13,7 +13,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "KAP Filtreli ve Net Özetli Trade Bot Aktif!"
+    return "KAP Detaylı Metin Okumalı Trade Bot Aktif!"
 
 def run_web():
     port = int(os.environ.get("PORT", 8080))
@@ -103,22 +103,42 @@ def telegram_gonder(mesaj):
 
 
 # ===========================
-# AI TRADE ANALİZİ (NET ÖZETLİ)
+# KAP SAYFASINDAN DETAYLI METİN OKUMA
 # ===========================
 
-def ai_analiz(sembol, baslik, ozet):
+def get_detayli_metin(disclosure_id):
+    """Bildirimin KAP web sayfasındaki detay metnini çeker."""
+    url = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
+    try:
+        r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+        if r.status_code == 200:
+            soup = BeautifulSoup(r.content, 'html.parser')
+            # Sayfadaki bildirim içerik alanını yakala
+            content = soup.find('div', {'class': 'disclosure-page-content'}) or soup.body
+            return content.get_text(separator=' ', strip=True)[:3500] # AI limitleri için ilk 3500 karakter
+    except Exception as e:
+        print("Detay Metin Çekme Hatası:", e)
+    return ""
+
+
+# ===========================
+# AI TRADE ANALİZİ (DETAYLI METİN DESTEKLİ)
+# ===========================
+
+def ai_analiz(sembol, baslik, ozet, detayli_metin):
     prompt = f"""
-Sen profesyonel bir borsa, KAP ve finansal haber analiz uzmanısın. Gelen KAP bildirimini en ince ayrıntısına kadar oku, ne anlama geldiğini net ve anlaşılır bir Türkçe ile çözümle.
+Sen profesyonel bir borsa, KAP ve finansal haber analiz uzmanısın. Sana KAP bildiriminin başlığını, özetini ve sistemin resmi KAP sayfasından çektiği detaylı metni (rapor içeriğini) veriyorum. Bunları dikkatle incele ve ne anlama geldiğini net bir Türkçe ile çözümle.
 
 Şirket Sembolü: {sembol}
 Başlık: {baslik}
 Özet: {ozet}
+Resmi Sayfa Detay Metni: {detayli_metin}
 
-NOT: Hissenin anlık borsa fiyatını bilmediğin için asla net TL fiyatı (örn: 50 TL veya 100 TL) verme. Destek/direnç için "Mevcut direnç bölgesi", "Zirve bandı" veya "Destek seviyesi" gibi teknik ifadeler kullan.
+NOT: Hissenin anlık borsa fiyatını bilmediğin için asla net TL fiyatı verme. Destek/direnç için "Mevcut direnç bölgesi", "Zirve bandı" veya "Destek seviyesi" gibi teknik ifadeler kullan.
 
 Aşağıdaki formata tam olarak uyarak yanıt ver:
 
-Haberin Özü (Ne Anlama Geliyor?): (Haberin gerçekte ne olduğunu, şirket için ne ifade ettiğini teknik jargona boğmadan net bir şekilde 1-2 cümleyle açıkla)
+Haberin Özü (Ne Anlama Geliyor?): (Detaylı metne dayanarak gerçekte ne olduğunu, şirket için ne ifade ettiğini net bir şekilde 1-2 cümleyle açıkla)
 Etki: (Pozitif / Negatif / Nötr)
 Haber Sınıfı: (Stratejik / Spekülatif / Rutin)
 Temel/Teknik Skor: (0-100 arası sayı)
@@ -160,8 +180,8 @@ Trade ve Risk Yorumu: (Haberin tahtadaki hacim etkisini ve dikkat edilmesi gerek
         return str(e)
 
 
-print("KAP NET ÖZETLİ TRADE BOTU BAŞLATILDI")
-telegram_gonder("⚡ KAP Net Özetli Trade Analiz Botu Aktif")
+print("KAP DETAYLI OKUMALI TRADE BOTU BAŞLATILDI")
+telegram_gonder("⚡ KAP Detaylı Okumalı Trade Analiz Botu Aktif")
 
 while True:
     bugun = datetime.now().strftime("%d.%m.%Y")
@@ -226,13 +246,17 @@ while True:
             link = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
 
             print("=" * 90)
-            print("🟢 FİLTREDEN GEÇEN NET ÖZETLİ SİNYAL")
+            print("🟢 FİLTREDEN GEÇEN BİLDİRİM - DETAYLAR OKUNUYOR...")
             print("=" * 90)
             print("Şirket :", sirket)
             print("Sembol :", sembol)
             print("Başlık :", baslik)
 
-            analiz = ai_analiz(sembol, baslik, ozet)
+            # KAP web sayfasından asıl detay metnini çek
+            detayli_metin = get_detayli_metin(disclosure_id)
+
+            # Yapay zekaya hem özeti hem de resmi detay metnini gönder
+            analiz = ai_analiz(sembol, baslik, ozet, detayli_metin)
 
             print(analiz)
             
@@ -254,7 +278,7 @@ while True:
 
         if ilk_acilis:
             print(f"{len(gorulen)} eski bildirim hafızaya alındı.")
-            print("Bot net özet modunda sinyal dinliyor.\n")
+            print("Bot detaylı okuma modunda sinyal dinliyor.\n")
             ilk_acilis = False
 
     except Exception as e:
