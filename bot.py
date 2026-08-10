@@ -13,7 +13,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "KAP Yapay Zeka Akıllı Filtreleme Botu Aktif!"
+    return "KAP Filtreli ve Net Özetli Trade Bot Aktif!"
 
 def run_web():
     port = int(os.environ.get("PORT", 8080))
@@ -41,7 +41,7 @@ HEADERS = {
 }
 
 # ===========================
-# FİLTRELER ("Özel Durum" buraya eklendi, artık yapay zeka karar verecek)
+# FİLTRELER
 # ===========================
 
 KEYWORDS = [
@@ -64,8 +64,7 @@ KEYWORDS = [
     "Ortaklık",
     "Satın Alma",
     "Stratejik İş Birliği",
-    "Esas Sözleşme",
-    "Özel Durum"  # Artık özel durumlar bota girecek, AI karar verecek
+    "Esas Sözleşme"
 ]
 
 IGNORE = [
@@ -76,7 +75,8 @@ IGNORE = [
     "Kupon",
     "Faiz",
     "VTMK",
-    "VDMK"
+    "VDMK",
+    "Özel Durum Açıklaması (Genel)"
 ]
 
 gorulen = set()
@@ -103,29 +103,29 @@ def telegram_gonder(mesaj):
 
 
 # ===========================
-# AI TRADE ANALİZİ VE AKILLI ELEME
+# AI TRADE ANALİZİ (NET ÖZETLİ)
 # ===========================
 
 def ai_analiz(sembol, baslik, ozet):
     prompt = f"""
-Sen profesyonel bir borsa, KAP ve finansal haber analiz uzmanısın. Gelen KAP bildirimini incele.
+Sen profesyonel bir borsa, KAP ve finansal haber analiz uzmanısın. Gelen KAP bildirimini en ince ayrıntısına kadar oku, ne anlama geldiğini net ve anlaşılır bir Türkçe ile çözümle.
 
 Şirket Sembolü: {sembol}
 Başlık: {baslik}
 Özet: {ozet}
 
-ÖNEMLİ TALİMAT:
-Eğer bu haber tamamen rutin, boş, şirketin faaliyetine veya hisse fiyatına hiçbir etkisi olmayan sıradan bir idari/genel açıklama ise; yanıtın en başına kelimesi kelimesine **ÖNEMSİZ_RUTİN** yaz ve başka hiçbir şey uzatma.
-Eğer haber hissede hareket yaratabilecek (ihale, iş ilişkisi, bilanço, ortaklık, stratejik karar vb.) önemli bir gelişmeyse, alttaki formata tam olarak uyarak detaylı analiz ver:
+NOT: Hissenin anlık borsa fiyatını bilmediğin için asla net TL fiyatı (örn: 50 TL veya 100 TL) verme. Destek/direnç için "Mevcut direnç bölgesi", "Zirve bandı" veya "Destek seviyesi" gibi teknik ifadeler kullan.
 
-Haberin Özü (Ne Anlama Geliyor?): (Haberin gerçekte ne olduğunu, şirket için ne ifade ettiğini net bir şekilde 1-2 cümleyle açıkla)
+Aşağıdaki formata tam olarak uyarak yanıt ver:
+
+Haberin Özü (Ne Anlama Geliyor?): (Haberin gerçekte ne olduğunu, şirket için ne ifade ettiğini teknik jargona boğmadan net bir şekilde 1-2 cümleyle açıkla)
 Etki: (Pozitif / Negatif / Nötr)
 Haber Sınıfı: (Stratejik / Spekülatif / Rutin)
 Temel/Teknik Skor: (0-100 arası sayı)
 Günlük Trade Uygunluğu: (Uygun / Riskli / Tavsiye Edilmez)
 Beklenen Günlük Marj: (Örn: %3 - %5 veya Tavan Potansiyeli / Baskılı)
 Destek / Direnç Bölgesi: (Göreceli teknik bant veya yüzdesel aralık)
-Trade and Risk Yorumu: (Haberin tahtadaki hacim etkisini ve dikkat edilmesi gereken riski en fazla 2 cümleyle özetle)
+Trade ve Risk Yorumu: (Haberin tahtadaki hacim etkisini ve dikkat edilmesi gereken riski en fazla 2 cümleyle özetle)
 """
 
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -160,8 +160,8 @@ Trade and Risk Yorumu: (Haberin tahtadaki hacim etkisini ve dikkat edilmesi gere
         return str(e)
 
 
-print("KAP AKILLI FİLTRELEME BOTU BAŞLATILDI")
-telegram_gonder("⚡ KAP Akıllı Filtreleme Trade Botu Aktif")
+print("KAP NET ÖZETLİ TRADE BOTU BAŞLATILDI")
+telegram_gonder("⚡ KAP Net Özetli Trade Analiz Botu Aktif")
 
 while True:
     bugun = datetime.now().strftime("%d.%m.%Y")
@@ -226,15 +226,13 @@ while True:
             link = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
 
             print("=" * 90)
-            print("🟢 BİLDİRİM YAPAY ZEKAYA GÖNDERİLİYOR:", baslik)
+            print("🟢 FİLTREDEN GEÇEN NET ÖZETLİ SİNYAL")
             print("=" * 90)
+            print("Şirket :", sirket)
+            print("Sembol :", sembol)
+            print("Başlık :", baslik)
 
             analiz = ai_analiz(sembol, baslik, ozet)
-
-            # Yapay zeka habere "ÖNEMSİZ_RUTİN" derse Telegram'a atma
-            if "ÖNEMSİZ_RUTİN" in analiz:
-                print("❌ Yapay Zeka Haberi Rutin Buldu, Elendi.\n")
-                continue
 
             print(analiz)
             
@@ -256,7 +254,7 @@ while True:
 
         if ilk_acilis:
             print(f"{len(gorulen)} eski bildirim hafızaya alındı.")
-            print("Bot akıllı filtre modunda çalışıyor.\n")
+            print("Bot net özet modunda sinyal dinliyor.\n")
             ilk_acilis = False
 
     except Exception as e:
