@@ -2,16 +2,35 @@ import requests
 import time
 import json
 from datetime import datetime
+from flask import Flask
+import threading
+import os
+
+# ===========================
+# FLASK WEB SUNUCUSU (Render için)
+# ===========================
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "KAP Gelişmiş Trade Bot Aktif!"
+
+def run_web():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+threading.Thread(target=run_web).start()
+
 
 # ===========================
 # AYARLAR
 # ===========================
 
-BOT_TOKEN = "AQ.Ab8RN6Ju9ERFohJuzAbEkws73oOrivEqmJrVEE1MP89ZdDlv0w"
+BOT_TOKEN = "8952631263:AAG8x4JqVmmj-7AlzbilHma9wkumBpATVsg"
 CHAT_ID = "8812183487"
 
-# Google Gemini API Anahtarınızı buraya yazın
-GEMINI_API_KEY = "AQ.Ab8RN6LS915KPxAfQWh21zeI8wFumFJiHthwL7F7jt3XureaiA"
+# Groq API Anahtarınız
+GROQ_API_KEY = "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"
 
 KAP_URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
 
@@ -21,42 +40,7 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-# ÖNEMLİ HABER FİLTRELERİ
-KEYWORDS = [
-    "Finansal Rapor",
-    "Bilanço",
-    "Yeni İş İlişkisi",
-    "Sözleşme",
-    "Sermaye Artırımı",
-    "Kar Payı",
-    "Temettü",
-    "Payların Geri Alınmasına",
-    "Pay Geri Alım",
-    "Birleşme",
-    "Bölünme",
-    "İhale",
-    "Yatırım",
-    "Teşvik",
-    "Kapasite Artırımı",
-    "Yeni Fabrika",
-    "Ortaklık",
-    "Satın Alma",
-    "Stratejik İş Birliği",
-    "Esas Sözleşme"
-]
-
-# GEREKSİZ / GÜRÜLTÜ YARATAN HABERLER
-IGNORE = [
-    "Devre Kesici",
-    "Varant",
-    "Sertifika",
-    "Borçlanma Aracı",
-    "Kupon",
-    "Faiz",
-    "VTMK",
-    "VDMK",
-    "Özel Durum Açıklaması (Genel)"
-]
+# FİLTRELER KALDIRILDI (Her gelen bildirim işlenecek)
 
 gorulen = set()
 ilk_acilis = True
@@ -82,12 +66,12 @@ def telegram_gonder(mesaj):
 
 
 # ===========================
-# AI TRADE ANALİZİ (GÜNLÜK AL-SAT ODAKLI)
+# AI TRADE ANALİZİ (GROQ İLE - GELİŞTİRİLMİŞ PROMPT)
 # ===========================
 
 def ai_analiz(sembol, baslik, ozet):
     prompt = f"""
-Sen profesyonel bir gün içi (day trading) borsa ve teknik analiz uzmanısın. Gelen KAP haberini anlık fiyat hareketi, hacim patlaması potansiyeli ve günlük trade edilebilirlik açısından süz.
+Sen profesyonel bir gün içi (day trading) borsa, hacim ve teknik analiz uzmanısın. Gelen KAP haberini anlık fiyat hareketi, hacim patlaması potansiyeli ve günlük trade edilebilirlik açısından süz.
 
 Şirket: {sembol}
 Başlık: {baslik}
@@ -96,24 +80,25 @@ Başlık: {baslik}
 Aşağıdaki formata tam olarak uyarak net, kısa ve vurucu yanıt ver:
 
 Etki: (Pozitif / Negatif / Nötr)
+Haber Sınıfı: (Stratejik / Spekülatif / Rutin)
 Temel/Teknik Skor: (0-100 arası sayı)
 Günlük Trade Uygunluğu: (Uygun / Riskli / Tavsiye Edilmez)
-Beklenen Günlük Marj: (Örn: %3 - %5 veya Baskılı)
+Beklenen Günlük Marj: (Örn: %3 - %5 veya Tavan Potansiyeli / Baskılı)
 Tahmini Destek / Direnç: (Haberin yaratacağı harekete göre olası anlık seviye ipuçları veya bant aralığı)
-Trade Yorumu: (Haberin gün içi tahtaya etkisini, hacim ve yön beklentisini en fazla 2 cümleyle özetle)
+Trade ve Risk Yorumu: (Haberin tahtadaki hacim etkisini, yön beklentisini ve dikkat edilmesi gereken riski en fazla 2 cümleyle özetle)
 """
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={GEMINI_API_KEY}"
+    url = "https://api.groq.com/openai/v1/chat/completions"
     
     headers = {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {GROQ_API_KEY}"
     }
 
     body = {
-        "contents": [
-            {
-                "parts": [{"text": prompt}]
-            }
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "user", "content": prompt}
         ]
     }
 
@@ -126,17 +111,17 @@ Trade Yorumu: (Haberin gün içi tahtaya etkisini, hacim ve yön beklentisini en
         )
 
         if r.status_code != 200:
-            return f"Gemini AI Hatası ({r.status_code}): {r.text}"
+            return f"Groq AI Hatası ({r.status_code}): {r.text}"
 
         veri = r.json()
-        return veri["candidates"][0]["content"]["parts"][0]["text"]
+        return veri["choices"][0]["message"]["content"]
 
     except Exception as e:
         return str(e)
 
 
-print("KAP GÜNLÜK TRADE BOTU BAŞLATILDI")
-telegram_gonder("⚡ KAP Günlük Trade Analiz Botu Aktif")
+print("KAP GELİŞMİŞ TRADE BOTU BAŞLATILDI")
+telegram_gonder("⚡ KAP Gelişmiş Trade Analiz Botu Aktif")
 
 while True:
     bugun = datetime.now().strftime("%d.%m.%Y")
@@ -182,13 +167,6 @@ while True:
 
             baslik = bilgi.get("title", "")
             ozet = bilgi.get("summary", "")
-            metin = (baslik + " " + ozet).lower()
-
-            if any(k.lower() in metin for k in IGNORE):
-                continue
-
-            if not any(k.lower() in metin for k in KEYWORDS):
-                continue
 
             sembol = (
                 bilgi.get("relatedStocks")
@@ -197,12 +175,11 @@ while True:
             )
 
             sirket = bilgi.get("companyTitle", "-")
-            saat = bilgi.get("publishDate", "-")
             disclosure_id = bilgi.get("disclosureId")
             link = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
 
             print("=" * 90)
-            print("🟢 TRADE SİNYALİ YAKALANDI")
+            print("🟢 YENİ BİLDİRİM YAKALANDI (Gelişmiş Analiz)")
             print("=" * 90)
             print("Şirket :", sirket)
             print("Sembol :", sembol)
@@ -230,7 +207,7 @@ while True:
 
         if ilk_acilis:
             print(f"{len(gorulen)} eski bildirim hafızaya alındı.")
-            print("Bot günlük trade modunda sinyal dinliyor.\n")
+            print("Bot gelişmiş analiz modunda haberleri dinliyor.\n")
             ilk_acilis = False
 
     except Exception as e:
