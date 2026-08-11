@@ -40,7 +40,45 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-# FİLTRELER KALDIRILDI (Her gelen bildirim işlenecek)
+# ===========================
+# FİLTRELER (Finansal Raporlar hariç tutuldu, temettü ve diğerleri eklendi)
+# ===========================
+
+KEYWORDS = [
+    "Yeni İş İlişkisi",
+    "Sözleşme",
+    "Sermaye Artırımı",
+    "Kar Payı",
+    "Temettü",
+    "Payların Geri Alınmasına",
+    "Pay Geri Alım",
+    "Birleşme",
+    "Bölünme",
+    "İhale",
+    "Yatırım",
+    "Teşvik",
+    "Kapasite Artırımı",
+    "Yeni Fabrika",
+    "Ortaklık",
+    "Satın Alma",
+    "Stratejik İş Birliği",
+    "Esas Sözleşme"
+]
+
+IGNORE = [
+    "Finansal Rapor",
+    "Bilanço",
+    "Gelir Tablosu",
+    "Devre Kesici",
+    "Varant",
+    "Sertifika",
+    "Borçlanma Aracı",
+    "Kupon",
+    "Faiz",
+    "VTMK",
+    "VDMK",
+    "Özel Durum Açıklaması (Genel)"
+]
 
 gorulen = set()
 ilk_acilis = True
@@ -167,6 +205,15 @@ while True:
 
             baslik = bilgi.get("title", "")
             ozet = bilgi.get("summary", "")
+            metin = (baslik + " " + ozet).lower()
+
+            # IGNORE listesindekileri (Finansal raporlar vb.) eliyoruz
+            if any(k.lower() in metin for k in IGNORE):
+                continue
+
+            # KEYWORDS listesindekilerden (Temettü, sözleşme vb.) en az biri geçmeli
+            if not any(k.lower() in metin for k in KEYWORDS):
+                continue
 
             sembol = (
                 bilgi.get("relatedStocks")
@@ -179,7 +226,7 @@ while True:
             link = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
 
             print("=" * 90)
-            print("🟢 YENİ BİLDİRİM YAKALANDI (Gelişmiş Analiz)")
+            print("🟢 FİLTREDEN GEÇEN BİLDİRİM YAKALANDI")
             print("=" * 90)
             print("Şirket :", sirket)
             print("Sembol :", sembol)
@@ -207,7 +254,7 @@ while True:
 
         if ilk_acilis:
             print(f"{len(gorulen)} eski bildirim hafızaya alındı.")
-            print("Bot gelişmiş analiz modunda haberleri dinliyor.\n")
+            print("Bot filtreli modda haberleri dinliyor.\n")
             ilk_acilis = False
 
     except Exception as e:
