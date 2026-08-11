@@ -1,5 +1,6 @@
 import requests
 import time
+import json
 from datetime import datetime
 from flask import Flask
 import threading
@@ -12,7 +13,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "KAP API Detay Okumalı Trade Bot Aktif!"
+    return "KAP Gelişmiş Trade Bot Aktif!"
 
 def run_web():
     port = int(os.environ.get("PORT", 8080))
@@ -39,44 +40,7 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-# ===========================
-# FİLTRELER
-# ===========================
-
-KEYWORDS = [
-    "Finansal Rapor",
-    "Bilanço",
-    "Yeni İş İlişkisi",
-    "Sözleşme",
-    "Sermaye Artırımı",
-    "Kar Payı",
-    "Temettü",
-    "Payların Geri Alınmasına",
-    "Pay Geri Alım",
-    "Birleşme",
-    "Bölünme",
-    "İhale",
-    "Yatırım",
-    "Teşvik",
-    "Kapasite Artırımı",
-    "Yeni Fabrika",
-    "Ortaklık",
-    "Satın Alma",
-    "Stratejik İş Birliği",
-    "Esas Sözleşme"
-]
-
-IGNORE = [
-    "Devre Kesici",
-    "Varant",
-    "Sertifika",
-    "Borçlanma Aracı",
-    "Kupon",
-    "Faiz",
-    "VTMK",
-    "VDMK",
-    "Özel Durum Açıklaması (Genel)"
-]
+# FİLTRELER KALDIRILDI (Her gelen bildirim işlenecek)
 
 gorulen = set()
 ilk_acilis = True
@@ -102,53 +66,26 @@ def telegram_gonder(mesaj):
 
 
 # ===========================
-# KAP DETAY SERVİSİNDEN DOĞRUDAN VERİ ÇEKME
+# AI TRADE ANALİZİ (GROQ İLE - GELİŞTİRİLMİŞ PROMPT)
 # ===========================
 
-def get_pdf_metni(disclosure_id):
-    """KAP'ın resmi detay servisinden bildirimin tüm ham içeriğini çeker."""
-    detay_url = f"https://www.kap.org.tr/tr/api/disclosure/{disclosure_id}"
-    try:
-        r = requests.get(detay_url, headers=HEADERS, timeout=15)
-        if r.status_code == 200:
-            veri = r.json()
-            rapor_metni = ""
-            if "disclosure" in veri:
-                d = veri["disclosure"]
-                rapor_metni += d.get("summary", "") + " "
-                rapor_metni += d.get("disclosureContent", "") + " "
-            return rapor_metni[:4000]
-    except Exception as e:
-        print("API Detay Çekme Hatası:", e)
-    return ""
-
-
-# ===========================
-# AI TRADE ANALİZİ (MATEMATİKSEL VERİ DESTEKLİ)
-# ===========================
-
-def ai_analiz(sembol, baslik, ozet, detayli_metin):
+def ai_analiz(sembol, baslik, ozet):
     prompt = f"""
-Sen profesyonel bir borsa, KAP ve finansal veri analistisin. Sana KAP bildiriminin başlığını, özetini ve sistemin KAP detay servisinden çektiği ham metni veriyorum. Raporun içindeki sayısal ve matematiksel verileri (kâr/zarar, ciro, ihale bedeli, büyüme oranları vb.) dikkatle incele.
+Sen profesyonel bir gün içi (day trading) borsa, hacim ve teknik analiz uzmanısın. Gelen KAP haberini anlık fiyat hareketi, hacim patlaması potansiyeli ve günlük trade edilebilirlik açısından süz.
 
-Şirket Sembolü: {sembol}
+Şirket: {sembol}
 Başlık: {baslik}
 Özet: {ozet}
-Ham Rapor Metni: {detayli_metin}
 
-NOT: Hissenin anlık borsa fiyatını ve tahtasını bilmediğin için asla kesin TL fiyatı (örn: 50 TL) içeren destek/direnç verme. Bunun yerine "Mevcut direnç bölgesi", "Zirve bandı" veya "Teknik destek seviyesi" gibi göreceli ifadeler kullan.
+Aşağıdaki formata tam olarak uyarak net, kısa ve vurucu yanıt ver:
 
-Aşağıdaki formata tam olarak uyarak yanıt ver:
-
-Önemli Matematiksel Veriler: (Raporda geçen ciro, net kâr, ihale tutarı veya değişim yüzdelerini kısa maddeler halinde yaz, veri yoksa "Yok" de)
-Haberin Özü (Ne Anlama Geliyor?): (Gerçekte ne olduğunu net bir şekilde 1-2 cümleyle açıkla)
 Etki: (Pozitif / Negatif / Nötr)
 Haber Sınıfı: (Stratejik / Spekülatif / Rutin)
 Temel/Teknik Skor: (0-100 arası sayı)
 Günlük Trade Uygunluğu: (Uygun / Riskli / Tavsiye Edilmez)
 Beklenen Günlük Marj: (Örn: %3 - %5 veya Tavan Potansiyeli / Baskılı)
-Destek / Direnç Bölgesi: (Göreceli teknik bant veya yüzdesel aralık)
-Trade and Risk Yorumu: (Verilere dayalı tahta etkisini en fazla 2 cümleyle özetle)
+Tahmini Destek / Direnç: (Haberin yaratacağı harekete göre olası anlık seviye ipuçları veya bant aralığı)
+Trade ve Risk Yorumu: (Haberin tahtadaki hacim etkisini, yön beklentisini ve dikkat edilmesi gereken riski en fazla 2 cümleyle özetle)
 """
 
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -183,8 +120,8 @@ Trade and Risk Yorumu: (Verilere dayalı tahta etkisini en fazla 2 cümleyle öz
         return str(e)
 
 
-print("KAP API DETAYLI TRADE BOTU BAŞLATILDI")
-telegram_gonder("⚡ KAP API Detaylı Trade Analiz Botu Aktif")
+print("KAP GELİŞMİŞ TRADE BOTU BAŞLATILDI")
+telegram_gonder("⚡ KAP Gelişmiş Trade Analiz Botu Aktif")
 
 while True:
     bugun = datetime.now().strftime("%d.%m.%Y")
@@ -230,13 +167,6 @@ while True:
 
             baslik = bilgi.get("title", "")
             ozet = bilgi.get("summary", "")
-            metin = (baslik + " " + ozet).lower()
-
-            if any(k.lower() in metin for k in IGNORE):
-                continue
-
-            if not any(k.lower() in metin for k in KEYWORDS):
-                continue
 
             sembol = (
                 bilgi.get("relatedStocks")
@@ -249,17 +179,13 @@ while True:
             link = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
 
             print("=" * 90)
-            print("🟢 FİLTREDEN GEÇEN BİLDİRİM - KAP API DETAYLARI ÇEKİLİYOR...")
+            print("🟢 YENİ BİLDİRİM YAKALANDI (Gelişmiş Analiz)")
             print("=" * 90)
             print("Şirket :", sirket)
             print("Sembol :", sembol)
             print("Başlık :", baslik)
 
-            # KAP resmi API detay servisinden ham rapor metnini çek
-            detayli_metin = get_pdf_metni(disclosure_id)
-
-            # Yapay zekaya matematiksel verilerle birlikte gönder
-            analiz = ai_analiz(sembol, baslik, ozet, detayli_metin)
+            analiz = ai_analiz(sembol, baslik, ozet)
 
             print(analiz)
             
@@ -281,7 +207,7 @@ while True:
 
         if ilk_acilis:
             print(f"{len(gorulen)} eski bildirim hafızaya alındı.")
-            print("Bot API detay modunda sinyal dinliyor.\n")
+            print("Bot gelişmiş analiz modunda haberleri dinliyor.\n")
             ilk_acilis = False
 
     except Exception as e:
