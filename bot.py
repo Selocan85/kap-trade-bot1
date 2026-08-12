@@ -28,7 +28,7 @@ BOT_TOKEN = "8952631263:AAG8x4JqVmmj-7AlzbilHma9wkumBpATVsg"
 CHAT_ID = "8812183487"
 
 # Groq API Anahtarınızı buraya yapıştırın (gsk_ ile başlar)
-GROQ_API_KEY = "BURAYA_GROQ_API_KEY_YAZIN"
+GROQ_API_KEY = "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"
 
 KAP_URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
 
