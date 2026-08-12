@@ -2,16 +2,33 @@ import requests
 import time
 import json
 from datetime import datetime
+from flask import Flask
+import threading
+
+# ===========================
+# FLASK WEB SUNUCUSU (Render için)
+# ===========================
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "KAP Günlük Trade Bot Aktif (Groq Modu)!"
+
+def run_web():
+    app.run(host='0.0.0.0', port=8080)
+
+threading.Thread(target=run_web).start()
+
 
 # ===========================
 # AYARLAR
 # ===========================
 
-BOT_TOKEN = "AQ.Ab8RN6Ju9ERFohJuzAbEkws73oOrivEqmJrVEE1MP89ZdDlv0w"
+BOT_TOKEN = "8952631263:AAG8x4JqVmmj-7AlzbilHma9wkumBpATVsg"
 CHAT_ID = "8812183487"
 
-# Google Gemini API Anahtarınızı buraya yazın
-GEMINI_API_KEY = "AQ.Ab8RN6LS915KPxAfQWh21zeI8wFumFJiHthwL7F7jt3XureaiA"
+# Groq API Anahtarınızı buraya yapıştırın (gsk_ ile başlar)
+GROQ_API_KEY = "BURAYA_GROQ_API_KEY_YAZIN"
 
 KAP_URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
 
@@ -82,7 +99,7 @@ def telegram_gonder(mesaj):
 
 
 # ===========================
-# AI TRADE ANALİZİ (GÜNLÜK AL-SAT ODAKLI)
+# AI TRADE ANALİZİ (GROQ İLE)
 # ===========================
 
 def ai_analiz(sembol, baslik, ozet):
@@ -103,17 +120,17 @@ Tahmini Destek / Direnç: (Haberin yaratacağı harekete göre olası anlık sev
 Trade Yorumu: (Haberin gün içi tahtaya etkisini, hacim ve yön beklentisini en fazla 2 cümleyle özetle)
 """
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={GEMINI_API_KEY}"
+    url = "https://api.groq.com/openai/v1/chat/completions"
     
     headers = {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {GROQ_API_KEY}"
     }
 
     body = {
-        "contents": [
-            {
-                "parts": [{"text": prompt}]
-            }
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "user", "content": prompt}
         ]
     }
 
@@ -126,17 +143,17 @@ Trade Yorumu: (Haberin gün içi tahtaya etkisini, hacim ve yön beklentisini en
         )
 
         if r.status_code != 200:
-            return f"Gemini AI Hatası ({r.status_code}): {r.text}"
+            return f"Groq AI Hatası ({r.status_code}): {r.text}"
 
         veri = r.json()
-        return veri["candidates"][0]["content"]["parts"][0]["text"]
+        return veri["choices"][0]["message"]["content"]
 
     except Exception as e:
         return str(e)
 
 
-print("KAP GÜNLÜK TRADE BOTU BAŞLATILDI")
-telegram_gonder("⚡ KAP Günlük Trade Analiz Botu Aktif")
+print("KAP GÜNLÜK TRADE BOTU BAŞLATILDI (Groq Modu)")
+telegram_gonder("⚡ KAP Günlük Trade Analiz Botu Aktif (Groq)")
 
 while True:
     bugun = datetime.now().strftime("%d.%m.%Y")
