@@ -1,3 +1,4 @@
+
 import requests
 import time
 from datetime import datetime
@@ -6,9 +7,10 @@ import threading
 import os
 
 # ===========================
-# FLASK WEB SUNUCUSU (Render İçin Zorunlu)
+# FLASK WEB SUNUCUSU (RENDER)
 # ===========================
-app = Flask('')
+
+app = Flask(__name__)
 
 @app.route('/')
 def home():
@@ -16,18 +18,25 @@ def home():
 
 def run_web():
     port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host="0.0.0.0", port=port)
 
-# Web sunucusunu arka planda (ayrı bir thread'de) başlatıyoruz
-threading.Thread(target=run_web).start()
+threading.Thread(target=run_web, daemon=True).start()
 
 
 # ===========================
 # AYARLAR
 # ===========================
 
-BOT_TOKEN = "8952631263:AAG8x4JqVmmj-7AlzbilHma9wkumBpATVsg"
-CHAT_ID = "8812183487"
+# Render Environment Variables bölümüne ekle:
+# TELEGRAM_BOT_TOKEN = BotFather'dan aldığın YENİ token
+
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+
+# Birinci ve ikinci kişinin Telegram Chat ID'si
+CHAT_IDS = [
+    "8812183487",
+    "8518771668"
+]
 
 URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
 
@@ -73,37 +82,55 @@ IGNORE = [
 
 
 # ===========================
-# TELEGRAM
+# TELEGRAM BİLDİRİMİ
 # ===========================
 
 def telegram_gonder(mesaj):
-    if BOT_TOKEN == "":
+    if not BOT_TOKEN:
+        print("HATA: TELEGRAM_BOT_TOKEN ayarlanmamış!")
         return
 
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-    try:
-        requests.post(
-            url,
-            data={
-                "chat_id": CHAT_ID,
-                "text": mesaj,
-                "disable_web_page_preview": True
-            },
-            timeout=15
-        )
-    except Exception as e:
-        print("Telegram Hatası:", e)
+    for chat_id in CHAT_IDS:
+        try:
+            response = requests.post(
+                url,
+                data={
+                    "chat_id": chat_id,
+                    "text": mesaj,
+                    "disable_web_page_preview": True
+                },
+                timeout=15
+            )
+
+            sonuc = response.json()
+
+            if response.ok and sonuc.get("ok"):
+                print(f"Bildirim gönderildi: {chat_id}")
+            else:
+                print(
+                    f"Telegram gönderim hatası ({chat_id}): "
+                    f"{sonuc.get('description', response.text)}"
+                )
+
+        except Exception as e:
+            print(f"Telegram hatası ({chat_id}): {e}")
 
 
+# ===========================
+# KAP TAKİP SİSTEMİ
 # ===========================
 
 gorulen = set()
 ilk_acilis = True
 
 print("KAP Bot Başlatıldı...")
-telegram_gonder("✅ KAP Bot Başlatıldı.\n\nTelegram bağlantısı başarılı 🚀")
 
+telegram_gonder(
+    "✅ KAP Bot Başlatıldı.\n\n"
+    "Telegram bağlantısı başarılı 🚀"
+)
 
 while True:
     bugun = datetime.now().strftime("%d.%m.%Y")
@@ -115,7 +142,6 @@ while True:
     }
 
     try:
-
         r = requests.post(
             URL,
             json=payload,
@@ -136,9 +162,7 @@ while True:
         )
 
         for item in data:
-
             bilgi = item["disclosureBasic"]
-
             idx = bilgi["disclosureIndex"]
 
             if ilk_acilis:
@@ -159,13 +183,20 @@ while True:
             if any(k.lower() in metin for k in IGNORE):
                 continue
 
-            # Sadece önemli haberleri göster
+            # Yalnızca seçilen önemli haberler
             if not any(k.lower() in metin for k in KEYWORDS):
                 continue
 
-            sembol = bilgi.get("relatedStocks") or bilgi.get("stockCode") or "-"
+            sembol = (
+                bilgi.get("relatedStocks")
+                or bilgi.get("stockCode")
+                or "-"
+            )
 
-            link = f"https://www.kap.org.tr/tr/Bildirim/{bilgi['disclosureId']}"
+            link = (
+                "https://www.kap.org.tr/tr/Bildirim/"
+                + str(bilgi["disclosureId"])
+            )
 
             print("\n" + "=" * 90)
             print("🟢 YENİ ÖNEMLİ KAP HABERİ")
@@ -192,11 +223,14 @@ while True:
 🔗 {link}
 """
 
+            # Aynı bildirimi iki kişiye de gönder
             telegram_gonder(mesaj)
 
         if ilk_acilis:
             print(f"{len(gorulen)} eski bildirim hafızaya alındı.")
-            print("Artık sadece yeni önemli haberler gösterilecek.\n")
+            print(
+                "Artık sadece yeni önemli haberler gösterilecek.\n"
+            )
             ilk_acilis = False
 
     except Exception as e:
