@@ -1,188 +1,196 @@
-
-import requests
-import time
 from datetime import datetime
-from flask import Flask
-import threading
 import os
+import threading
+import time
+from flask import Flask
+import requests
 
+# ===========================
+# FLASK WEB SUNUCUSU (Render İçin Zorunlu)
+# ===========================
 app = Flask('')
+
 
 @app.route('/')
 def home():
-    return "KAP Trade Bot Aktif ve Çalışıyor!"
+  return 'KAP Bot Aktif ve Çalışıyor!'
+
 
 def run_web():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+  port = int(os.environ.get('PORT', 8080))
+  app.run(host='0.0.0.0', port=port)
 
-threading.Thread(target=run_web, daemon=True).start()
 
-BOT_TOKEN = "TELEGRAM_BOT_TOKENINI_BURAYA_YAZ"
-CHAT_ID = "8812183487"
+# Web sunucusunu arka planda (ayrı bir thread'de) başlatıyoruz
+threading.Thread(target=run_web).start()
 
-KAP_URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
+
+# ===========================
+# AYARLAR
+# ===========================
+
+BOT_TOKEN = '8952631263:AAG8x4JqVmmj-7AlzbilHma9wkumBpATVsg'
+CHAT_ID = '8812183487'
+
+URL = 'https://www.kap.org.tr/tr/api/disclosure/list/main'
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0",
-    "Referer": "https://www.kap.org.tr/tr",
-    "Content-Type": "application/json"
+    'User-Agent': 'Mozilla/5.0',
+    'Referer': 'https://www.kap.org.tr/tr',
+    'Content-Type': 'application/json',
 }
 
+# Gösterilecek haberler
 KEYWORDS = [
-    "Finansal Rapor",
-    "Bilanço",
-    "Yeni İş İlişkisi",
-    "Sözleşme",
-    "Sermaye Artırımı",
-    "Kar Payı",
-    "Temettü",
-    "Payların Geri Alınmasına",
-    "Pay Geri Alım",
-    "Birleşme",
-    "Bölünme",
-    "İhale",
-    "Yatırım",
-    "Teşvik",
-    "Kapasite Artırımı",
-    "Yeni Fabrika",
-    "Ortaklık",
-    "Satın Alma",
-    "Stratejik İş Birliği",
-    "Esas Sözleşme"
+    'Finansal Rapor',
+    'Yeni İş İlişkisi',
+    'Sermaye Artırımı',
+    'Sermaye Azaltımı',
+    'Kar Payı',
+    'Temettü',
+    'Payların Geri Alınmasına',
+    'Pay Geri Alım',
+    'Birleşme',
+    'Bölünme',
+    'İhale',
+    'Yatırım',
+    'Teşvik',
+    'Kapasite Artırımı',
+    'Yeni Fabrika',
+    'Ortaklık',
+    'Satın Alma',
+    'Esas Sözleşme',
 ]
 
+# Gösterilmeyecek haberler
 IGNORE = [
-    "Devre Kesici",
-    "Varant",
-    "Sertifika",
-    "Borçlanma Aracı",
-    "Kupon",
-    "Faiz",
-    "VTMK",
-    "VDMK",
-    "Özel Durum Açıklaması (Genel)"
+    'Devre Kesici',
+    'Varant',
+    'Sertifika',
+    'Borçlanma Aracı',
+    'Kupon',
+    'Faiz',
+    'VTMK',
+    'VDMK',
 ]
+
+
+# ===========================
+# TELEGRAM
+# ===========================
+
+
+def telegram_gonder(mesaj):
+  if BOT_TOKEN == '':
+    return
+
+  url = f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage'
+
+  try:
+    requests.post(
+        url,
+        data={
+            'chat_id': CHAT_ID,
+            'text': mesaj,
+'disable_web_page_preview': True,
+        },
+        timeout=15,
+    )
+  except Exception as e:
+    print('Telegram Hatası:', e)
+
+
+# ===========================
 
 gorulen = set()
 ilk_acilis = True
 
-def telegram_gonder(mesaj):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    try:
-        r = requests.post(
-            url,
-            data={
-                "chat_id": CHAT_ID,
-                "text": mesaj,
-                "disable_web_page_preview": True
-            },
-            timeout=20
-        )
-        if r.status_code != 200:
-            print("Telegram Hatası:", r.text)
-    except Exception as e:
-        print("Telegram:", e)
+print('KAP Bot Başlatıldı...')
+telegram_gonder('✅ KAP Bot Başlatıldı.\n\nTelegram bağlantısı başarılı 🚀')
 
-print("KAP HABER BOTU BAŞLATILDI")
-telegram_gonder("✅ KAP Haber Botu Aktif. Yeni KAP bildirimleri takip ediliyor.")
 
 while True:
-    bugun = datetime.now().strftime("%d.%m.%Y")
+  bugun = datetime.now().strftime('%d.%m.%Y')
 
-    payload = {
-        "fromDate": bugun,
-        "toDate": bugun,
-        "memberTypes": ["IGS", "DDK"]
-    }
+  payload = {'fromDate': bugun, 'toDate': bugun, 'memberTypes': ['IGS', 'DDK']}
 
-    try:
-        r = requests.post(
-            KAP_URL,
-            json=payload,
-            headers=HEADERS,
-            timeout=20
-        )
+  try:
+    r = requests.post(URL, json=payload, headers=HEADERS, timeout=20)
 
-        if r.status_code != 200:
-            print("API Hatası:", r.status_code)
-            time.sleep(15)
-            continue
+    if r.status_code != 200:
+      print('API Hatası:', r.status_code)
+      time.sleep(15)
+      continue
 
-        data = r.json()
+    data = r.json()
 
-        data = sorted(
-            data,
-            key=lambda x: x["disclosureBasic"]["disclosureIndex"]
-        )
+    data = sorted(
+        data, key=lambda x: x['disclosureBasic']['disclosureIndex']
+    )
 
-        for item in data:
-            bilgi = item["disclosureBasic"]
-            idx = bilgi["disclosureIndex"]
+    for item in data:
+      bilgi = item['disclosureBasic']
+      idx = bilgi['disclosureIndex']
 
-            if ilk_acilis:
-                gorulen.add(idx)
-                continue
+      if ilk_acilis:
+        gorulen.add(idx)
+        continue
 
-            if idx in gorulen:
-                continue
+      if idx in gorulen:
+        continue
 
-            gorulen.add(idx)
+      gorulen.add(idx)
 
-            baslik = bilgi.get("title", "")
-            ozet = bilgi.get("summary", "")
-            metin = (baslik + " " + ozet).lower()
+      baslik = bilgi.get('title', '')
+      ozet = bilgi.get('summary', '')
 
-            if any(k.lower() in metin for k in IGNORE):
-                continue
+      metin = (baslik + ' ' + ozet).lower()
 
-            if not any(k.lower() in metin for k in KEYWORDS):
-                continue
+      # Gereksiz haberleri atla
+      if any(k.lower() in metin for k in IGNORE):
+        continue
 
-            sembol = (
-                bilgi.get("relatedStocks")
-                or bilgi.get("stockCode")
-                or "-"
-            )
+      # Sadece önemli haberleri göster
+      if not any(k.lower() in metin for k in KEYWORDS):
+        continue
 
-            sirket = bilgi.get("companyTitle", "-")
-            saat = bilgi.get("publishDate", "-")
-            disclosure_id = bilgi.get("disclosureId")
-            link = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
+      sembol = bilgi.get('relatedStocks') or bilgi.get('stockCode') or '-'
 
-            print("=" * 90)
-            print("YENİ KAP HABERİ")
-            print("=" * 90)
-            print("Şirket :", sirket)
-            print("Sembol :", sembol)
-            print("Başlık :", baslik)
-            print("Özet :", ozet)
-            print("Saat :", saat)
-            print("Link :", link)
+      link = f"https://www.kap.org.tr/tr/Bildirim/{bilgi['disclosureId']}"
 
-            mesaj = f"""🔔 YENİ KAP BİLDİRİMİ
+      print('\n' + '=' * 90)
+      print('🟢 YENİ ÖNEMLİ KAP HABERİ')
+      print('=' * 90)
+      print('Şirket :', bilgi.get('companyTitle'))
+      print('Sembol :', sembol)
+      print('Başlık :', baslik)
+      print('Özet :', ozet)
+      print('Saat :', bilgi.get('publishDate'))
+      print('Link :', link)
+      print('=' * 90)
 
-🏢 {sirket}
+      mesaj = f"""🟢 KAP Bildirimi
+
+🏢 {bilgi.get("companyTitle")}
 📈 {sembol}
 
 📄 {baslik}
 
 📝 {ozet}
 
-🕒 {saat}
+🕒 {bilgi.get("publishDate")}
 
 🔗 {link}
+"""
 
+      telegram_gonder(mesaj)
 
-            telegram_gonder(mesaj)
-            print("Telegram'a gönderildi.\n")
+    if ilk_acilis:
+      print(f'{len(gorulen)} eski bildirim hafızaya alındı.')
+      print('Artık sadece yeni önemli haberler gösterilecek.\n')
+      ilk_acilis = False
 
-        if ilk_acilis:
-            print(f"{len(gorulen)} eski bildirim hafızaya alındı.")
-            print("Bot yeni KAP haberlerini takip ediyor.\n")
-            ilk_acilis = False
+  except Exception as e:
+    print('HATA:', e)
 
-    except Exception as e:
-        print("BOT HATASI:", e)
-
-    time.sleep(15)
+  time.sleep(15)
