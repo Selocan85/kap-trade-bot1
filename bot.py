@@ -10,7 +10,7 @@ app = Flask('')
 
 @app.route('/')
 def home():
-    return "KAP Bot Aktif ve Çalışıyor!"
+    return "KAP Trade Bot Aktif ve Çalışıyor!"
 
 def run_web():
     port = int(os.environ.get("PORT", 8080))
@@ -18,10 +18,10 @@ def run_web():
 
 threading.Thread(target=run_web, daemon=True).start()
 
-BOT_TOKEN = "8952631263:AAG8x4JqVmmj-7AlzbilHma9wkumBpATVsg"
+BOT_TOKEN = "AQ.Ab8RN6Jnvj1PxZ0b20tTEiDHPZL0aNSoTdVJDZq6iLOfCbctjQ"
 CHAT_ID = "8812183487"
 
-URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
+KAP_URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0",
@@ -31,9 +31,10 @@ HEADERS = {
 
 KEYWORDS = [
     "Finansal Rapor",
+    "Bilanço",
     "Yeni İş İlişkisi",
+    "Sözleşme",
     "Sermaye Artırımı",
-    "Sermaye Azaltımı",
     "Kar Payı",
     "Temettü",
     "Payların Geri Alınmasına",
@@ -47,6 +48,7 @@ KEYWORDS = [
     "Yeni Fabrika",
     "Ortaklık",
     "Satın Alma",
+    "Stratejik İş Birliği",
     "Esas Sözleşme"
 ]
 
@@ -58,36 +60,32 @@ IGNORE = [
     "Kupon",
     "Faiz",
     "VTMK",
-    "VDMK"
+    "VDMK",
+    "Özel Durum Açıklaması (Genel)"
 ]
 
+gorulen = set()
+ilk_acilis = True
+
 def telegram_gonder(mesaj):
-    if BOT_TOKEN == "":
-        return
-
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-
     try:
-        response = requests.post(
+        r = requests.post(
             url,
             data={
                 "chat_id": CHAT_ID,
                 "text": mesaj,
                 "disable_web_page_preview": True
             },
-            timeout=15
+            timeout=20
         )
-        if response.status_code != 200:
-            print("Telegram Hatası:", response.text)
+        if r.status_code != 200:
+            print("Telegram Hatası:", r.text)
     except Exception as e:
-        print("Telegram Hatası:", e)
+        print("Telegram:", e)
 
-
-gorulen = set()
-ilk_acilis = True
-
-print("KAP Bot Başlatıldı...")
-telegram_gonder("✅ KAP Bot Başlatıldı.\n\nTelegram bağlantısı başarılı 🚀")
+print("KAP HABER BOTU BAŞLATILDI")
+telegram_gonder("✅ KAP Haber Botu Aktif. Yeni KAP bildirimleri takip ediliyor.")
 
 while True:
     bugun = datetime.now().strftime("%d.%m.%Y")
@@ -100,7 +98,7 @@ while True:
 
     try:
         r = requests.post(
-            URL,
+            KAP_URL,
             json=payload,
             headers=HEADERS,
             timeout=20
@@ -133,7 +131,6 @@ while True:
 
             baslik = bilgi.get("title", "")
             ozet = bilgi.get("summary", "")
-
             metin = (baslik + " " + ozet).lower()
 
             if any(k.lower() in metin for k in IGNORE):
@@ -142,44 +139,51 @@ while True:
             if not any(k.lower() in metin for k in KEYWORDS):
                 continue
 
-            sembol = bilgi.get("relatedStocks") or bilgi.get("stockCode") or "-"
+            sembol = (
+                bilgi.get("relatedStocks")
+                or bilgi.get("stockCode")
+                or "-"
+            )
 
-            link = f"https://www.kap.org.tr/tr/Bildirim/{bilgi['disclosureId']}"
+            sirket = bilgi.get("companyTitle", "-")
+            saat = bilgi.get("publishDate", "-")
+            disclosure_id = bilgi.get("disclosureId")
+            link = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
 
-            print("\n" + "=" * 90)
-            print("🟢 YENİ ÖNEMLİ KAP HABERİ")
             print("=" * 90)
-            print("Şirket :", bilgi.get("companyTitle"))
+            print("YENİ KAP HABERİ")
+            print("=" * 90)
+            print("Şirket :", sirket)
             print("Sembol :", sembol)
             print("Başlık :", baslik)
             print("Özet :", ozet)
-            print("Saat :", bilgi.get("publishDate"))
+            print("Saat :", saat)
             print("Link :", link)
-            print("=" * 90)
 
-            mesaj = f"""🟢 KAP Bildirimi
+            mesaj = f"""🔔 YENİ KAP BİLDİRİMİ
 
-🏢 {bilgi.get("companyTitle")}
+🏢 {sirket}
 📈 {sembol}
 
 📄 {baslik}
 
 📝 {ozet}
 
-🕒 {bilgi.get("publishDate")}
+🕒 {saat}
 
 🔗 {link}
 """
 
             telegram_gonder(mesaj)
+            print("Telegram'a gönderildi.\n")
 
         if ilk_acilis:
             print(f"{len(gorulen)} eski bildirim hafızaya alındı.")
-            print("Artık sadece yeni önemli haberler gösterilecek.\n")
+            print("Bot yeni KAP haberlerini takip ediyor.\n")
             ilk_acilis = False
 
     except Exception as e:
-        print("HATA:", e)
+        print("BOT HATASI:", e)
 
     time.sleep(15)
 ```
