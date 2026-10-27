@@ -27,8 +27,8 @@ threading.Thread(target=run_web, daemon=True).start()
 # ===========================
 
 # Render Environment Variables bölümünden tanımla.
-BOT_TOKEN = os.environ.get(""8952631263:AAG8x4JqVmmj-7AlzbilHma9wkumBpATVsg"", "")
-CHAT_ID = os.environ.get("8812183487", "")
+BOT_TOKEN = os.environ.get(""8952631263:AAG8x4JqVmmj-7AlzbilHma9wkumBpATVsg")
+CHAT_ID = os.environ.get("8812183487")
 
 URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
 
