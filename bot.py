@@ -1,205 +1,516 @@
 import requests
-import time
-from datetime import datetime
-from flask import Flask
-import threading
-import os
 
-===========================
-FLASK WEB SUNUCUSU (Render İçin Zorunlu)
-===========================
+import time
+
+import json
+
+from datetime import datetime
+
+from flask import Flask
+
+import threading
+
+
+
+# ===========================
+
+# FLASK WEB SUNUCUSU (Render için gerekli)
+
+# ===========================
+
 app = Flask('')
 
+
+
 @app.route('/')
+
 def home():
-return "KAP Bot Aktif ve Çalışıyor!"
+
+    return "KAP Trade Bot Aktif ve Çalışıyor!"
+
+
 
 def run_web():
-port = int(os.environ.get("PORT", 8080))
-app.run(host='0.0.0.0', port=port)
 
-Web sunucusunu arka planda (ayrı bir thread'de) başlatıyoruz
+    app.run(host='0.0.0.0', port=8080)
+
+
+
+# Web sunucusunu arka planda ayrı bir iş parçacığında başlatıyoruz
+
 threading.Thread(target=run_web).start()
 
 
-===========================
-AYARLAR
-===========================
+
+
+
+# ===========================
+
+# AYARLAR
+
+# ===========================
+
+
 
 BOT_TOKEN = "8952631263:AAG8x4JqVmmj-7AlzbilHma9wkumBpATVsg"
+
 CHAT_ID = "8812183487"
 
-URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
+
+
+# Google Gemini API Anahtarınız
+
+GEMINI_API_KEY = "AQ.Ab8RN6Jnvj1PxZ0b20tTEiDHPZL0aNSoTdVJDZq6iLOfCbctjQ"
+
+
+
+KAP_URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
+
+
 
 HEADERS = {
-"User-Agent": "Mozilla/5.0",
-"Referer": "https://www.kap.org.tr/tr",
-"Content-Type": "application/json"
+
+    "User-Agent": "Mozilla/5.0",
+
+    "Referer": "https://www.kap.org.tr/tr",
+
+    "Content-Type": "application/json"
+
 }
 
-Gösterilecek haberler
+
+
+# ÖNEMLİ HABER FİLTRELERİ
+
 KEYWORDS = [
-"Finansal Rapor",
-"Yeni İş İlişkisi",
-"Sermaye Artırımı",
-"Sermaye Azaltımı",
-"Kar Payı",
-"Temettü",
-"Payların Geri Alınmasına",
-"Pay Geri Alım",
-"Birleşme",
-"Bölünme",
-"İhale",
-"Yatırım",
-"Teşvik",
-"Kapasite Artırımı",
-"Yeni Fabrika",
-"Ortaklık",
-"Satın Alma",
-"Esas Sözleşme"
+
+    "Finansal Rapor",
+
+    "Bilanço",
+
+    "Yeni İş İlişkisi",
+
+    "Sözleşme",
+
+    "Sermaye Artırımı",
+
+    "Kar Payı",
+
+    "Temettü",
+
+    "Payların Geri Alınmasına",
+
+    "Pay Geri Alım",
+
+    "Birleşme",
+
+    "Bölünme",
+
+    "İhale",
+
+    "Yatırım",
+
+    "Teşvik",
+
+    "Kapasite Artırımı",
+
+    "Yeni Fabrika",
+
+    "Ortaklık",
+
+    "Satın Alma",
+
+    "Stratejik İş Birliği",
+
+    "Esas Sözleşme"
+
 ]
 
-Gösterilmeyecek haberler
+
+
+# GEREKSİZ / GÜRÜLTÜ YARATAN HABERLER
+
 IGNORE = [
-"Devre Kesici",
-"Varant",
-"Sertifika",
-"Borçlanma Aracı",
-"Kupon",
-"Faiz",
-"VTMK",
-"VDMK"
+
+    "Devre Kesici",
+
+    "Varant",
+
+    "Sertifika",
+
+    "Borçlanma Aracı",
+
+    "Kupon",
+
+    "Faiz",
+
+    "VTMK",
+
+    "VDMK",
+
+    "Özel Durum Açıklaması (Genel)"
+
 ]
 
 
-===========================
-TELEGRAM
-===========================
-
-def telegram_gonder(mesaj):
-if BOT_TOKEN == "":
-return
-
-url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-
-try:
-requests.post(
-url,
-data={
-"chat_id": CHAT_ID,
-"text": mesaj,
-"disable_web_page_preview": True
-},
-timeout=15
-)
-except Exception as e:
-print("Telegram Hatası:", e)
-
-
-===========================
 
 gorulen = set()
+
 ilk_acilis = True
 
-print("KAP Bot Başlatıldı...")
-telegram_gonder("✅ KAP Bot Başlatıldı.\n\nTelegram bağlantısı başarılı 🚀")
+
+
+# ===========================
+
+# TELEGRAM
+
+# ===========================
+
+
+
+def telegram_gonder(mesaj):
+
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+
+    try:
+
+        requests.post(
+
+            url,
+
+            data={
+
+                "chat_id": CHAT_ID,
+
+                "text": mesaj,
+
+                "disable_web_page_preview": True
+
+            },
+
+            timeout=20
+
+        )
+
+    except Exception as e:
+
+        print("Telegram:", e)
+
+
+
+
+
+# ===========================
+
+# AI TRADE ANALİZİ (GÜNLÜK AL-SAT ODAKLI)
+
+# ===========================
+
+
+
+def ai_analiz(sembol, baslik, ozet):
+
+    prompt = f"""
+
+Sen profesyonel bir gün içi (day trading) borsa ve teknik analiz uzmanısın. Gelen KAP haberini anlık fiyat hareketi, hacim patlaması potansiyeli ve günlük trade edilebilirlik açısından süz.
+
+
+
+Şirket: {sembol}
+
+Başlık: {baslik}
+
+Özet: {ozet}
+
+
+
+Aşağıdaki formata tam olarak uyarak net, kısa ve vurucu yanıt ver:
+
+
+
+Etki: (Pozitif / Negatif / Nötr)
+
+Temel/Teknik Skor: (0-100 arası sayı)
+
+Günlük Trade Uygunluğu: (Uygun / Riskli / Tavsiye Edilmez)
+
+Beklenen Günlük Marj: (Örn: %3 - %5 veya Baskılı)
+
+Tahmini Destek / Direnç: (Haberin yaratacağı harekete göre olası anlık seviye ipuçları veya bant aralığı)
+
+Trade Yorumu: (Haberin gün içi tahtaya etkisini, hacim ve yön beklentisini en fazla 2 cümleyle özetle)
+
+"""
+
+
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={GEMINI_API_KEY}"
+
+    
+
+    headers = {
+
+        "Content-Type": "application/json"
+
+    }
+
+
+
+    body = {
+
+        "contents": [
+
+            {
+
+                "parts": [{"text": prompt}]
+
+            }
+
+        ]
+
+    }
+
+
+
+    try:
+
+        r = requests.post(
+
+            url,
+
+            headers=headers,
+
+            json=body,
+
+            timeout=60
+
+        )
+
+
+
+        if r.status_code != 200:
+
+            return f"Gemini AI Hatası ({r.status_code}): {r.text}"
+
+
+
+        veri = r.json()
+
+        return veri["candidates"][0]["content"]["parts"][0]["text"]
+
+
+
+    except Exception as e:
+
+        return str(e)
+
+
+
+
+
+print("KAP GÜNLÜK TRADE BOTU BAŞLATILDI")
+
+telegram_gonder("⚡ KAP Günlük Trade Analiz Botu Aktif")
+
 
 
 while True:
-bugun = datetime.now().strftime("%d.%m.%Y")
 
-payload = {
-"fromDate": bugun,
-"toDate": bugun,
-"memberTypes": ["IGS", "DDK"]
-}
+    bugun = datetime.now().strftime("%d.%m.%Y")
 
-try:
 
-r = requests.post(
-URL,
-json=payload,
-headers=HEADERS,
-timeout=20
-)
 
-if r.status_code != 200:
-print("API Hatası:", r.status_code)
-time.sleep(15)
-continue
+    payload = {
 
-data = r.json()
+        "fromDate": bugun,
 
-data = sorted(
-data,
-key=lambda x: x["disclosureBasic"]["disclosureIndex"]
-)
+        "toDate": bugun,
 
-for item in data:
+        "memberTypes": ["IGS", "DDK"]
 
-bilgi = item["disclosureBasic"]
+    }
 
-idx = bilgi["disclosureIndex"]
 
-if ilk_acilis:
-gorulen.add(idx)
-continue
 
-if idx in gorulen:
-continue
+    try:
 
-gorulen.add(idx)
+        r = requests.post(
 
-baslik = bilgi.get("title", "")
-ozet = bilgi.get("summary", "")
+            KAP_URL,
 
-metin = (baslik + " " + ozet).lower()
+            json=payload,
 
-# Gereksiz haberleri atla
-if any(k.lower() in metin for k in IGNORE):
-continue
+            headers=HEADERS,
 
-# Sadece önemli haberleri göster
-if not any(k.lower() in metin for k in KEYWORDS):
-continue
+            timeout=20
 
-sembol = bilgi.get("relatedStocks") or bilgi.get("stockCode") or "-"
+        )
 
-link = f"https://www.kap.org.tr/tr/Bildirim/{bilgi['disclosureId']}"
 
-print("\n" + "=" * 90)
-print("🟢 YENİ ÖNEMLİ KAP HABERİ")
-print("=" * 90)
-print("Şirket :", bilgi.get("companyTitle"))
-print("Sembol :", sembol)
-print("Başlık :", baslik)
-print("Özet :", ozet)
-print("Saat :", bilgi.get("publishDate"))
-print("Link :", link)
-print("=" * 90)
 
-mesaj = f"""🟢 KAP Bildirimi
+        if r.status_code != 200:
 
-🏢 {bilgi.get("companyTitle")}
+            print("API Hatası:", r.status_code)
+
+            time.sleep(15)
+
+            continue
+
+
+
+        data = r.json()
+
+
+
+        data = sorted(
+
+            data,
+
+            key=lambda x: x["disclosureBasic"]["disclosureIndex"]
+
+        )
+
+
+
+        for item in data:
+
+            bilgi = item["disclosureBasic"]
+
+            idx = bilgi["disclosureIndex"]
+
+
+
+            if ilk_acilis:
+
+                gorulen.add(idx)
+
+                continue
+
+
+
+            if idx in gorulen:
+
+                continue
+
+
+
+            gorulen.add(idx)
+
+
+
+            baslik = bilgi.get("title", "")
+
+            ozet = bilgi.get("summary", "")
+
+            metin = (baslik + " " + ozet).lower()
+
+
+
+            if any(k.lower() in metin for k in IGNORE):
+
+                continue
+
+
+
+            if not any(k.lower() in metin for k in KEYWORDS):
+
+                continue
+
+
+
+            sembol = (
+
+                bilgi.get("relatedStocks")
+
+                or bilgi.get("stockCode")
+
+                or "-"
+
+            )
+
+
+
+            sirket = bilgi.get("companyTitle", "-")
+
+            saat = bilgi.get("publishDate", "-")
+
+            disclosure_id = bilgi.get("disclosureId")
+
+            link = f"https://www.kap.org.tr/tr/Bildirim/{disclosure_id}"
+
+
+
+            print("=" * 90)
+
+            print("🟢 TRADE SİNYALİ YAKALANDI")
+
+            print("=" * 90)
+
+            print("Şirket :", sirket)
+
+            print("Sembol :", sembol)
+
+            print("Başlık :", baslik)
+
+
+
+            analiz = ai_analiz(sembol, baslik, ozet)
+
+
+
+            print(analiz)
+
+            
+
+            mesaj = f"""
+
+⚡ GÜNLÜK TRADE SİNYALİ
+
+
+
+🏢 {sirket}
+
 📈 {sembol}
+
+
 
 📄 {baslik}
 
-📝 {ozet}
 
-🕒 {bilgi.get("publishDate")}
+
+{analiz}
+
+
 
 🔗 {link}
+
 """
 
-telegram_gonder(mesaj)
 
-if ilk_acilis:
-print(f"{len(gorulen)} eski bildirim hafızaya alındı.")
-print("Artık sadece yeni önemli haberler gösterilecek.\n")
-ilk_acilis = False
 
-except Exception as e:
-print("HATA:", e)
+            telegram_gonder(mesaj)
 
-time.sleep(15)
+            print("\nTelegram'a gönderildi.\n")
+
+
+
+        if ilk_acilis:
+
+            print(f"{len(gorulen)} eski bildirim hafızaya alındı.")
+
+            print("Bot günlük trade modunda sinyal dinliyor.\n")
+
+            ilk_acilis = False
+
+
+
+    except Exception as e:
+
+        print("BOT HATASI:", e)
+
+
+
+    time.sleep(15)
+
+render için özel kod bu 
+
