@@ -512,5 +512,3 @@ while True:
 
     time.sleep(15)
 
-render için özel kod bu 
-
