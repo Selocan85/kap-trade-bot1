@@ -18,7 +18,7 @@ def run_web():
 
 threading.Thread(target=run_web, daemon=True).start()
 
-BOT_TOKEN = "AQ.Ab8RN6Jnvj1PxZ0b20tTEiDHPZL0aNSoTdVJDZq6iLOfCbctjQ"
+BOT_TOKEN = "8952631263:AAG8x4JqVmmj-7AlzbilHma9wkumBpATVsg"
 CHAT_ID = "8812183487"
 
 KAP_URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
