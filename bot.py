@@ -18,7 +18,7 @@ def run_web():
 
 threading.Thread(target=run_web, daemon=True).start()
 
-BOT_TOKEN = "8952631263:AAG8x4JqVmmj-7AlzbilHma9wkumBpATVsg"
+BOT_TOKEN = "TELEGRAM_BOT_TOKENINI_BURAYA_YAZ"
 CHAT_ID = "8812183487"
 
 KAP_URL = "https://www.kap.org.tr/tr/api/disclosure/list/main"
@@ -172,7 +172,7 @@ while True:
 🕒 {saat}
 
 🔗 {link}
-"""
+
 
             telegram_gonder(mesaj)
             print("Telegram'a gönderildi.\n")
@@ -186,4 +186,3 @@ while True:
         print("BOT HATASI:", e)
 
     time.sleep(15)
-```
